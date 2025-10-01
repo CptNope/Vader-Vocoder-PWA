@@ -62,6 +62,22 @@ php -S localhost:5500
 - **Safari**: Core functionality with some limitations
 - **Mobile browsers**: Supported with touch-optimized interface
 
+### 📱 Android Installation (Samsung S22 Ultra & Other Devices)
+
+#### Installing as PWA
+1. **Open Chrome** on your Android device
+2. **Navigate** to the Vader Vocoder URL
+3. **Tap the menu** (three dots) → "Add to Home screen" or "Install app"
+4. **Grant permissions** when prompted for microphone access
+5. **Launch** from your home screen like a native app
+
+#### Android-Specific Setup
+- **Microphone Permission**: The app will automatically request microphone access on first load
+- **Device Detection**: After granting permission, you'll see actual device names instead of "default"
+- **Bluetooth Audio**: Pair your Bluetooth headphones/speakers in Android Settings first
+- **Performance**: Android devices use optimized audio constraints for better compatibility
+- **Background Audio**: Keep the app in foreground for best performance
+
 ## Usage
 
 ### Basic Operation
@@ -141,6 +157,26 @@ vader-vocoder-pwa/
 - **Refresh Devices**: Click the refresh button (↻) to update device list
 - **Browser Support**: Output device selection requires Chrome/Edge
 - **OS Pairing**: Bluetooth devices must be paired at system level first
+
+### 🤖 Android-Specific Troubleshooting
+
+#### "Only Default Device" Issue
+- **Grant Permission First**: The app automatically requests microphone permission on load
+- **Check Status Log**: Look for "Microphone permission granted" in the status section
+- **Refresh After Permission**: Click the refresh button (↻) after granting permission
+- **Chrome Required**: Use Chrome browser for best Android compatibility
+
+#### Samsung S22 Ultra Specific
+- **Multiple Microphones**: Your device has multiple mics - choose the one that works best
+- **Bluetooth Priority**: Samsung devices prioritize Bluetooth audio when connected
+- **Performance Mode**: Enable "High Performance" in battery settings for better audio processing
+- **Do Not Disturb**: Disable DND mode as it can interfere with audio permissions
+
+#### General Android Issues
+- **Background Limits**: Keep the app in foreground to prevent audio interruption
+- **Battery Optimization**: Disable battery optimization for Chrome if audio cuts out
+- **Storage Permission**: Ensure Chrome has storage access for PWA installation
+- **Clear Cache**: Clear Chrome cache if device detection fails repeatedly
 
 ## Development
 

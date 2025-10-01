@@ -79,32 +79,67 @@ function log(s){ logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHe
 
 async function populateDevices(){
   try {
+    // First request microphone permission to get proper device labels
+    // This is especially important on Android/mobile devices
+    let permissionGranted = false;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(track => track.stop()); // Stop immediately
+      permissionGranted = true;
+      log("Microphone permission granted");
+    } catch (permError) {
+      log("Microphone permission denied or unavailable: " + permError.message);
+    }
+
     const devices = await navigator.mediaDevices.enumerateDevices();
     const inputs = devices.filter(d => d.kind === 'audioinput');
     const outputs = devices.filter(d => d.kind === 'audiooutput');
 
     micSelect.innerHTML = '';
-    inputs.forEach(d => {
+    if (inputs.length === 0) {
       const opt = document.createElement('option');
-      opt.value = d.deviceId;
-      opt.textContent = d.label || `Mic ${micSelect.length+1}`;
+      opt.value = '';
+      opt.textContent = 'No microphones found';
       micSelect.appendChild(opt);
-    });
+      log("No audio input devices found");
+    } else {
+      inputs.forEach((d, index) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        // Use device label if available, otherwise create descriptive name
+        opt.textContent = d.label || `Microphone ${index + 1}`;
+        micSelect.appendChild(opt);
+      });
+      log(`Found ${inputs.length} microphone(s)`);
+    }
 
     outSelect.innerHTML = '';
-    outputs.forEach(d => {
+    if (outputs.length === 0) {
       const opt = document.createElement('option');
-      opt.value = d.deviceId;
-      opt.textContent = d.label || `Output ${outSelect.length+1}`;
+      opt.value = '';
+      opt.textContent = 'Default speakers';
       outSelect.appendChild(opt);
-    });
+      log("No audio output devices found, using default");
+    } else {
+      outputs.forEach((d, index) => {
+        const opt = document.createElement('option');
+        opt.value = d.deviceId;
+        // Use device label if available, otherwise create descriptive name
+        opt.textContent = d.label || `Speaker ${index + 1}`;
+        outSelect.appendChild(opt);
+      });
+      log(`Found ${outputs.length} audio output(s)`);
+    }
 
     if (preferredSinkId && [...outSelect.options].some(o => o.value===preferredSinkId)){
       outSelect.value = preferredSinkId;
       trySetSink(preferredSinkId);
     }
   } catch(e){
-    log("Device enumeration failed (permissions first?): " + e.message);
+    log("Device enumeration failed: " + e.message);
+    // Add fallback options
+    micSelect.innerHTML = '<option value="">Default Microphone</option>';
+    outSelect.innerHTML = '<option value="">Default Speakers</option>';
   }
 }
 
@@ -206,30 +241,50 @@ async function start(){
       log("AudioContext resumed (browser autoplay policy)");
     }
 
-    // mic stream with error handling
+    // mic stream with error handling and Android optimization
     const devId = micSelect.value || undefined;
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    
+    // Android-optimized audio constraints
+    const baseConstraints = {
+      channelCount: 1,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false
+    };
+    
+    // Add device-specific constraints if available
+    if (devId) {
+      baseConstraints.deviceId = { exact: devId };
+    }
+    
+    // Android devices often work better with lower sample rates
+    if (!isAndroid) {
+      baseConstraints.sampleRate = 48000;
+    }
+    
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: devId ? {exact: devId} : undefined,
-          channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-          sampleRate: 48000
-        }
+        audio: baseConstraints
       });
+      log(`Using microphone: ${micSelect.selectedOptions[0]?.textContent || 'Default'}`);
     } catch (micError) {
-      // Fallback to default device if specific device fails
+      // Fallback to minimal constraints for Android compatibility
       log("Specific mic failed, trying default: " + micError.message);
-      mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false
-        }
-      });
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+        log("Using default microphone with minimal constraints");
+      } catch (fallbackError) {
+        // Last resort - basic audio only
+        log("Minimal constraints failed, using basic audio: " + fallbackError.message);
+        mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
     }
 
     srcNode = audioCtx.createMediaStreamSource(mediaStream);
@@ -641,3 +696,69 @@ function loadSavedPreset(){
     applyPreset(PRESETS.vader);
   }
 }
+
+// Initialize the app
+document.addEventListener('DOMContentLoaded', async () => {
+  log("Vader Vocoder PWA loaded");
+  
+  // Check for mobile device
+  const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (isMobile) {
+    log("Mobile device detected - optimizing for mobile audio");
+  }
+  
+  // Load saved preset
+  loadSavedPreset();
+  
+  // Set up event listeners
+  startBtn.addEventListener('click', start);
+  stopBtn.addEventListener('click', stop);
+  refreshDevs.addEventListener('click', populateDevices);
+  breathBtn.addEventListener('click', playBreath);
+  
+  // Preset buttons
+  presetBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.dataset.preset;
+      if (PRESETS[preset]) {
+        applyPreset(PRESETS[preset]);
+        log(`Applied ${preset} preset`);
+      }
+    });
+  });
+  
+  savePresetBtn.addEventListener('click', () => {
+    const preset = collectUI();
+    localStorage.setItem(PRESET_KEY, JSON.stringify(preset));
+    log("Preset saved");
+  });
+  
+  loadPresetBtn.addEventListener('click', loadSavedPreset);
+  resetPresetBtn.addEventListener('click', () => {
+    applyPreset(PRESETS.vader);
+    log("Reset to Vader Classic preset");
+  });
+  
+  // PWA install prompt
+  let deferredPrompt;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
+  
+  installBtn.addEventListener('click', async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      log(`Install prompt: ${outcome}`);
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    }
+  });
+  
+  // Initial device population (will request permission on Android)
+  await populateDevices();
+  
+  log("Ready to start vocoding!");
+});
