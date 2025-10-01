@@ -34,6 +34,7 @@ const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const refreshDevs = document.getElementById('refreshDevs');
 const installBtn = document.getElementById('installBtn');
+const updateBtn = document.getElementById('updateBtn');
 
 // Ranges / selects
 const gainCtl = linkRange('gain','gainOut');
@@ -772,8 +773,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   
+  // Register service worker for updates
+  if ('serviceWorker' in navigator) {
+    try {
+      const registration = await navigator.serviceWorker.register('./sw.js');
+      log("Service worker registered");
+      
+      // Check for updates
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available
+            updateBtn.hidden = false;
+            log("Update available! Click 'Update Available' button to refresh.");
+          }
+        });
+      });
+      
+      // Handle update button click
+      updateBtn.addEventListener('click', () => {
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+          window.location.reload();
+        }
+      });
+      
+    } catch (error) {
+      log("Service worker registration failed: " + error.message);
+    }
+  }
+  
   // Initial device population (will request permission on Android)
   await populateDevices();
   
-  log("Ready to start vocoding!");
+  log("Ready to start vocoding! Version 2.1 with mobile optimizations.");
 });

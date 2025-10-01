@@ -95,6 +95,7 @@ php -S localhost:5500
 - **Bluetooth Audio**: Pair your Bluetooth headphones/speakers in Android Settings first
 - **Performance**: Android devices use optimized audio constraints for better compatibility
 - **Background Audio**: Keep the app in foreground for best performance
+- **Auto-Updates**: The app will automatically check for GitHub updates and show an "Update Available" button
 
 #### 🍎 iOS Installation (iPhone & iPad)
 
@@ -112,6 +113,41 @@ php -S localhost:5500
 - **Audio Optimization**: iOS devices use 44.1kHz sample rate for optimal compatibility
 - **Background Limitations**: iOS may pause audio when switching apps
 - **Bluetooth Support**: AirPods and other Bluetooth devices work seamlessly
+
+## 🔄 Getting Updates from GitHub
+
+### **How PWA Updates Work**
+When you install the PWA on your device, it creates a cached version. GitHub updates don't automatically sync, but the app includes an update system:
+
+### **Automatic Update Detection**
+1. **Open your installed PWA** - it checks for updates in the background
+2. **Look for "Update Available" button** - appears in the header when updates are found
+3. **Click "Update Available"** - instantly updates to the latest GitHub version
+4. **Check status log** - shows "Ready to start vocoding! Version 2.1" with latest features
+
+### **Manual Update Methods**
+
+#### **Method 1: Use Update Button (Recommended)**
+- Open your installed PWA and look for the **"Update Available"** button
+- Click it to instantly get the latest version from GitHub
+
+#### **Method 2: Refresh Cache**
+1. Open the PWA and check the **Status section** at the bottom
+2. Look for update messages or version numbers
+3. If no update detected, try closing and reopening the app
+
+#### **Method 3: Clear Cache (If stuck on old version)**
+1. **Android**: Long press PWA icon → App info → Storage & cache → Clear cache
+2. **iOS**: Settings → Safari → Clear History and Website Data (affects all sites)
+
+#### **Method 4: Reinstall PWA**
+1. **Uninstall** current PWA from home screen
+2. **Visit GitHub Pages URL** in browser
+3. **Reinstall** fresh copy with latest updates
+
+### **Checking Your Version**
+- Open the PWA and check the **Status log** at the bottom
+- Latest version shows: *"Ready to start vocoding! Version 2.1 with mobile optimizations"*
 
 ## Usage
 

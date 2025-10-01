@@ -1,5 +1,5 @@
-// Basic service worker for offline caching
-const CACHE = 'vader-vocoder-v1';
+// Service worker for offline caching and updates
+const CACHE = 'vader-vocoder-v2.1'; // Increment this to force updates
 const ASSETS = [
   './',
   './index.html',
@@ -27,4 +27,11 @@ self.addEventListener('fetch', event => {
   event.respondWith(
     caches.match(req).then(cached => cached || fetch(req))
   );
+});
+
+// Handle update notifications
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
