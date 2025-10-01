@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <title>Vader Vocoder PWA</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Vader Vocoder</h1>
+    <button id="installBtn" hidden>Install</button>
+  </header>
+
+  <main>
+    <section class="devices">
+      <h2>Devices</h2>
+      <div class="row">
+        <label for="micSelect">Microphone</label>
+        <select id="micSelect"></select>
+        <button id="refreshDevs">↻</button>
+      </div>
+      <div class="row">
+        <label for="outSelect">Audio Output</label>
+        <select id="outSelect" title="Requires browser support for setSinkId"></select>
+        <small class="hint">Tip: Bluetooth speakers/headsets should be paired at the OS level first.</small>
+      </div>
+      <div class="row">
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
+      </div>
+    </section>
+
+    
+    <section class="controls">
+      <h2>Voice Controls</h2>
+
+      <div class="grid">
+        <label>Master Gain
+          <input id="gain" type="range" min="0" max="2" step="0.01" value="1.2">
+          <output id="gainOut">1.2</output>
+        </label>
+
+        <label>Wet Mix
+          <input id="wet" type="range" min="0" max="1" step="0.01" value="0.6">
+          <output id="wetOut">0.6</output>
+        </label>
+
+        <label>Dry Mix
+          <input id="dry" type="range" min="0" max="1" step="0.01" value="1.0">
+          <output id="dryOut">1.0</output>
+        </label>
+
+        <label>Lowpass (Hz)
+          <input id="lp" type="range" min="200" max="6000" step="10" value="2200">
+          <output id="lpOut">2200</output>
+        </label>
+
+        <label>Highpass (Hz)
+          <input id="hp" type="range" min="20" max="800" step="1" value="120">
+          <output id="hpOut">120</output>
+        </label>
+
+        <label>Bandpass (Hz)
+          <input id="bp" type="range" min="200" max="3000" step="10" value="600">
+          <output id="bpOut">600</output>
+        </label>
+
+        <label>EQ 250 Hz (dB)
+          <input id="eq250" type="range" min="-12" max="12" step="0.1" value="2">
+          <output id="eq250Out">2</output>
+        </label>
+
+        <label>EQ 600 Hz (dB)
+          <input id="eq600" type="range" min="-12" max="12" step="0.1" value="4">
+          <output id="eq600Out">4</output>
+        </label>
+
+        <label>EQ 1.2 kHz (dB)
+          <input id="eq1200" type="range" min="-12" max="12" step="0.1" value="3">
+          <output id="eq1200Out">3</output>
+        </label>
+
+        <label>EQ 2.5 kHz (dB)
+          <input id="eq2500" type="range" min="-12" max="12" step="0.1" value="-2">
+          <output id="eq2500Out">-2</output>
+        </label>
+
+        <label>Distortion
+          <input id="dist" type="range" min="0" max="1000" step="1" value="180">
+          <output id="distOut">180</output>
+        </label>
+
+        <label>Vibrato Depth (ms)
+          <input id="vibDepth" type="range" min="0" max="15" step="0.1" value="3.5">
+          <output id="vibDepthOut">3.5</output>
+        </label>
+
+        <label>Vibrato Rate (Hz)
+          <input id="vibRate" type="range" min="0" max="12" step="0.1" value="5.0">
+          <output id="vibRateOut">5.0</output>
+        </label>
+
+        <label>Robot Mix (AM)
+          <input id="robotMix" type="range" min="0" max="1" step="0.01" value="0.25">
+          <output id="robotMixOut">0.25</output>
+        </label>
+
+        <label>Robot Rate (Hz)
+          <input id="robotRate" type="range" min="10" max="120" step="1" value="55">
+          <output id="robotRateOut">55</output>
+        </label>
+
+        <label>Reverb (mix)
+          <input id="reverb" type="range" min="0" max="1" step="0.01" value="0.25">
+          <output id="reverbOut">0.25</output>
+        </label>
+
+        <label>Compressor Threshold (dB)
+          <input id="comp" type="range" min="-80" max="0" step="1" value="-18">
+          <output id="compOut">-18</output>
+        </label>
+
+        <label>Noise Gate Threshold
+          <input id="gate" type="range" min="0.005" max="0.08" step="0.001" value="0.04">
+          <output id="gateOut">0.04</output>
+        </label>
+
+        <label>Breath Volume
+          <input id="breathVol" type="range" min="0" max="1" step="0.01" value="0.7">
+          <output id="breathVolOut">0.7</output>
+        </label>
+
+        <label>Latency Hint
+          <select id="latencyHint">
+            <option value="interactive" selected>interactive (lowest)</option>
+            <option value="balanced">balanced</option>
+            <option value="playback">playback</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <button id="breathBtn">Play Breathing</button>
+        <label><input type="checkbox" id="autobreath" checked> Auto between lines</label>
+      </div>
+
+      <div class="row">
+        <strong>Presets:</strong>
+        <button class="presetBtn" data-preset="vader">Vader Classic</button>
+        <button class="presetBtn" data-preset="intercom">Imperial Intercom</button>
+        <button class="presetBtn" data-preset="bounty">Bounty Hunter</button>
+        <button id="savePreset">Save Current</button>
+        <button id="loadPreset">Load Saved</button>
+        <button id="resetPreset">Reset Defaults</button>
+      </div>
+    </section>
+
+
+    <section class="status">
+      <h2>Status</h2>
+      <pre id="log"></pre>
+    </section>
+
+    <audio id="monitor" autoplay playsinline></audio>
+  </main>
+
+  <footer>
+    <small>Made with the Web Audio API. Installable PWA. Use with a helmet mic + BT speaker for best effect.</small>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
