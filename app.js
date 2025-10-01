@@ -234,7 +234,34 @@ async function start(){
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: latencySel.value});
+    // Check if AudioContext is supported
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      log("AudioContext not supported in this browser");
+      return;
+    }
+    
+    // Create new AudioContext with error handling
+    try {
+      audioCtx = new AudioContextClass({latencyHint: latencySel.value});
+      if (!audioCtx) {
+        throw new Error("Failed to create AudioContext");
+      }
+      log("AudioContext created successfully with latency hint: " + latencySel.value);
+    } catch (contextError) {
+      log("AudioContext creation failed: " + contextError.message);
+      // Try fallback without latency hint
+      try {
+        audioCtx = new AudioContextClass();
+        if (!audioCtx) {
+          throw new Error("Failed to create AudioContext even without latency hint");
+        }
+        log("AudioContext created with fallback (no latency hint)");
+      } catch (fallbackError) {
+        log("Complete AudioContext creation failure: " + fallbackError.message);
+        return;
+      }
+    }
     
     // Handle browser autoplay policy
     if (audioCtx.state === 'suspended') {
@@ -294,6 +321,11 @@ async function start(){
         log("Minimal constraints failed, using basic audio: " + fallbackError.message);
         mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       }
+    }
+
+    // Final safety check before creating media stream source
+    if (!audioCtx) {
+      throw new Error("AudioContext is null - cannot create media stream source");
     }
 
     srcNode = audioCtx.createMediaStreamSource(mediaStream);
@@ -501,9 +533,13 @@ function stop(){
     
     // Close audio context
     if (audioCtx && audioCtx.state !== 'closed') { 
-      audioCtx.close(); 
-      audioCtx = null; 
+      try {
+        audioCtx.close();
+      } catch(closeError) {
+        log("AudioContext close error: " + closeError.message);
+      }
     }
+    audioCtx = null;
     
     // Reset UI
     startBtn.disabled = false;
