@@ -36,6 +36,22 @@ A Progressive Web App that transforms your voice into a Darth Vader-like effect 
 - **Responsive Design** - Works on desktop, tablet, and mobile
 - **Device Auto-Detection** - Automatic audio device enumeration
 
+## File Structure
+
+```
+Vader-Vocoder-PWA/
+├── README.md              # This documentation file
+├── index.html             # Main HTML file
+├── app.js                 # Core application logic
+├── style.css              # Styling and responsive design
+├── manifest.webmanifest   # PWA manifest for installation
+├── sw.js                  # Service worker for offline functionality
+├── LICENSE                # MIT license
+└── icons/                 # PWA icons directory
+    ├── icon-192.png       # 192x192 icon
+    └── icon-512.png       # 512x512 icon
+```
+
 ## Installation & Setup
 
 ### Quick Start
@@ -62,21 +78,40 @@ php -S localhost:5500
 - **Safari**: Core functionality with some limitations
 - **Mobile browsers**: Supported with touch-optimized interface
 
-### 📱 Android Installation (Samsung S22 Ultra & Other Devices)
+### 📱 Mobile Installation
 
-#### Installing as PWA
+#### 🤖 Android Installation (Samsung S22 Ultra & Other Devices)
+
+**Installing as PWA**
 1. **Open Chrome** on your Android device
 2. **Navigate** to the Vader Vocoder URL
 3. **Tap the menu** (three dots) → "Add to Home screen" or "Install app"
 4. **Grant permissions** when prompted for microphone access
 5. **Launch** from your home screen like a native app
 
-#### Android-Specific Setup
+**Android-Specific Setup**
 - **Microphone Permission**: The app will automatically request microphone access on first load
 - **Device Detection**: After granting permission, you'll see actual device names instead of "default"
 - **Bluetooth Audio**: Pair your Bluetooth headphones/speakers in Android Settings first
 - **Performance**: Android devices use optimized audio constraints for better compatibility
 - **Background Audio**: Keep the app in foreground for best performance
+
+#### 🍎 iOS Installation (iPhone & iPad)
+
+**Installing as PWA**
+1. **Open Safari** on your iOS device (Chrome won't work for PWA installation)
+2. **Navigate** to the Vader Vocoder URL
+3. **Tap the Share button** (square with arrow up)
+4. **Scroll down** and tap "Add to Home Screen"
+5. **Confirm** the installation and **grant microphone permission** when prompted
+6. **Launch** from your home screen - it will run in fullscreen mode
+
+**iOS-Specific Setup**
+- **Safari Required**: Only Safari can install PWAs on iOS
+- **Microphone Permission**: iOS will prompt for microphone access on first use
+- **Audio Optimization**: iOS devices use 44.1kHz sample rate for optimal compatibility
+- **Background Limitations**: iOS may pause audio when switching apps
+- **Bluetooth Support**: AirPods and other Bluetooth devices work seamlessly
 
 ## Usage
 
@@ -177,6 +212,27 @@ vader-vocoder-pwa/
 - **Battery Optimization**: Disable battery optimization for Chrome if audio cuts out
 - **Storage Permission**: Ensure Chrome has storage access for PWA installation
 - **Clear Cache**: Clear Chrome cache if device detection fails repeatedly
+
+### 🍎 iOS-Specific Troubleshooting
+
+#### PWA Installation Issues
+- **Safari Only**: PWA installation only works in Safari, not Chrome or other browsers
+- **Share Button**: Look for the share button (square with up arrow) in Safari's toolbar
+- **iOS Version**: Requires iOS 11.3+ for PWA support
+- **Storage Space**: Ensure sufficient storage for PWA installation
+
+#### iPhone/iPad Audio Issues
+- **Microphone Permission**: Check Settings → Privacy & Security → Microphone → Safari
+- **Silent Mode**: Disable silent/mute switch - it can affect audio processing
+- **Background App**: iOS may pause audio when switching apps - keep app in foreground
+- **AirPods/Bluetooth**: Works great with AirPods - they'll show up in device selection
+- **Sample Rate**: iOS automatically uses 44.1kHz for optimal compatibility
+
+#### Device Detection Problems
+- **Permission First**: Grant microphone permission before device names appear
+- **Refresh Needed**: Tap refresh (↻) button after connecting/disconnecting devices
+- **Limited Selection**: iOS may show fewer device options than Android
+- **Default Fallback**: If no devices show, "Default" will use the system's preferred audio
 
 ## Development
 

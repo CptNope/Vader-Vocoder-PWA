@@ -241,11 +241,13 @@ async function start(){
       log("AudioContext resumed (browser autoplay policy)");
     }
 
-    // mic stream with error handling and Android optimization
+    // mic stream with error handling and mobile optimization
     const devId = micSelect.value || undefined;
     const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isMobile = isAndroid || isIOS;
     
-    // Android-optimized audio constraints
+    // Mobile-optimized audio constraints
     const baseConstraints = {
       channelCount: 1,
       echoCancellation: false,
@@ -258,10 +260,16 @@ async function start(){
       baseConstraints.deviceId = { exact: devId };
     }
     
-    // Android devices often work better with lower sample rates
-    if (!isAndroid) {
+    // iOS requires specific sample rate handling
+    if (isIOS) {
+      // iOS works best with 44.1kHz or let the system choose
+      baseConstraints.sampleRate = 44100;
+      log("iOS device detected - using 44.1kHz sample rate");
+    } else if (!isAndroid) {
+      // Desktop browsers can handle higher sample rates
       baseConstraints.sampleRate = 48000;
     }
+    // Android: let the system choose the best sample rate
     
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -702,8 +710,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   log("Vader Vocoder PWA loaded");
   
   // Check for mobile device
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  if (isMobile) {
+  
+  if (isIOS) {
+    log("iOS device detected - optimizing for iPhone/iPad audio");
+  } else if (isAndroid) {
+    log("Android device detected - optimizing for Android audio");
+  } else if (isMobile) {
     log("Mobile device detected - optimizing for mobile audio");
   }
   
