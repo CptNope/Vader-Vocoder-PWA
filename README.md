@@ -2,7 +2,7 @@
 
 A Progressive Web App that transforms your voice into a Darth Vader-like effect using real-time audio processing with the Web Audio API.
 
-![Vader Vocoder](Vader-Vocoder-PWA/icons/icon-192.png)
+![Vader Vocoder](icons/icon-192.png)
 
 ## Features
 
