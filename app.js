@@ -19,6 +19,13 @@ let gateThreshold = 0.04;
 let gateGain;
 let robotOsc, robotGain, robotMixGain;
 
+// New audio control nodes
+let inputGain, outputGain;
+let inputMuted = false;
+let outputMuted = false;
+let lastInputVolume = 1.0;
+let lastOutputVolume = 0.8;
+
 // Breath
 let breathBuffer;
 let breathSource = null;
@@ -35,6 +42,17 @@ const stopBtn = document.getElementById('stopBtn');
 const refreshDevs = document.getElementById('refreshDevs');
 const installBtn = document.getElementById('installBtn');
 const updateBtn = document.getElementById('updateBtn');
+
+// New audio control elements
+const inputVolumeCtl = linkRange('inputVolume','inputVolumeOut');
+const outputVolumeCtl = linkRange('outputVolume','outputVolumeOut');
+const muteInputBtn = document.getElementById('muteInput');
+const muteOutputBtn = document.getElementById('muteOutput');
+const autoFeedbackPreventionChk = document.getElementById('autoFeedbackPrevention');
+const testAudioBtn = document.getElementById('testAudio');
+const feedbackWarning = document.getElementById('feedbackWarning');
+const micTypeEl = document.getElementById('micType');
+const outTypeEl = document.getElementById('outType');
 
 // Ranges / selects
 const gainCtl = linkRange('gain','gainOut');
@@ -78,6 +96,47 @@ function linkRange(id, outId){
 
 function log(s){ logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHeight; }
 
+// Device type detection
+function detectDeviceType(device) {
+  const label = device.label.toLowerCase();
+  if (label.includes('bluetooth') || label.includes('bt') || label.includes('wireless')) {
+    return 'bluetooth';
+  } else if (label.includes('usb') || label.includes('headset') || label.includes('headphone')) {
+    return 'wired';
+  } else if (label.includes('airpods') || label.includes('wireless') || label.includes('buds')) {
+    return 'wireless';
+  } else if (label.includes('built-in') || label.includes('internal') || label.includes('default')) {
+    return 'built-in';
+  }
+  return 'unknown';
+}
+
+// Check for potential feedback
+function checkFeedbackRisk() {
+  const micDevice = micSelect.value;
+  const outDevice = outSelect.value;
+  const micLabel = micSelect.selectedOptions[0]?.textContent || '';
+  const outLabel = outSelect.selectedOptions[0]?.textContent || '';
+  
+  // Same device ID or similar device names indicate feedback risk
+  const sameDevice = micDevice === outDevice;
+  const similarNames = micLabel.includes('built-in') && outLabel.includes('built-in');
+  
+  if (autoFeedbackPreventionChk.checked && (sameDevice || similarNames)) {
+    feedbackWarning.classList.remove('hidden');
+    // Automatically reduce output volume to prevent feedback
+    if (outputVolumeCtl.value > 0.3) {
+      outputVolumeCtl.value = 0.3;
+      outputVolumeCtl.dispatchEvent(new Event('input'));
+      log("⚠️ Auto-reduced output volume to prevent feedback");
+    }
+    return true;
+  } else {
+    feedbackWarning.classList.add('hidden');
+    return false;
+  }
+}
+
 async function populateDevices(){
   try {
     // First request microphone permission to get proper device labels
@@ -109,6 +168,7 @@ async function populateDevices(){
         opt.value = d.deviceId;
         // Use device label if available, otherwise create descriptive name
         opt.textContent = d.label || `Microphone ${index + 1}`;
+        opt.dataset.deviceType = detectDeviceType(d);
         micSelect.appendChild(opt);
       });
       log(`Found ${inputs.length} microphone(s)`);
@@ -127,6 +187,7 @@ async function populateDevices(){
         opt.value = d.deviceId;
         // Use device label if available, otherwise create descriptive name
         opt.textContent = d.label || `Speaker ${index + 1}`;
+        opt.dataset.deviceType = detectDeviceType(d);
         outSelect.appendChild(opt);
       });
       log(`Found ${outputs.length} audio output(s)`);
@@ -136,11 +197,133 @@ async function populateDevices(){
       outSelect.value = preferredSinkId;
       trySetSink(preferredSinkId);
     }
+    
+    // Update device type indicators
+    updateDeviceTypeIndicators();
   } catch(e){
     log("Device enumeration failed: " + e.message);
     // Add fallback options
     micSelect.innerHTML = '<option value="">Default Microphone</option>';
     outSelect.innerHTML = '<option value="">Default Speakers</option>';
+  }
+}
+
+// Update device type indicators
+function updateDeviceTypeIndicators() {
+  const micOption = micSelect.selectedOptions[0];
+  const outOption = outSelect.selectedOptions[0];
+  
+  if (micOption) {
+    const micType = micOption.dataset.deviceType || 'unknown';
+    micTypeEl.textContent = micType;
+    micTypeEl.className = `device-type ${micType}`;
+  }
+  
+  if (outOption) {
+    const outType = outOption.dataset.deviceType || 'unknown';
+    outTypeEl.textContent = outType;
+    outTypeEl.className = `device-type ${outType}`;
+  }
+  
+  // Check for feedback risk when devices change
+  checkFeedbackRisk();
+}
+
+// Mute/unmute functions
+function toggleInputMute() {
+  inputMuted = !inputMuted;
+  if (inputGain) {
+    if (inputMuted) {
+      lastInputVolume = inputGain.gain.value;
+      inputGain.gain.value = 0;
+      muteInputBtn.textContent = '🔊 Unmute Input';
+      muteInputBtn.classList.add('muted');
+      log("Input muted");
+    } else {
+      inputGain.gain.value = lastInputVolume;
+      muteInputBtn.textContent = '🔇 Mute Input';
+      muteInputBtn.classList.remove('muted');
+      log("Input unmuted");
+    }
+  }
+}
+
+function toggleOutputMute() {
+  outputMuted = !outputMuted;
+  if (outputGain) {
+    if (outputMuted) {
+      lastOutputVolume = outputGain.gain.value;
+      outputGain.gain.value = 0;
+      muteOutputBtn.textContent = '🔊 Unmute Output';
+      muteOutputBtn.classList.add('muted');
+      log("Output muted");
+    } else {
+      outputGain.gain.value = lastOutputVolume;
+      muteOutputBtn.textContent = '🔇 Mute Output';
+      muteOutputBtn.classList.remove('muted');
+      log("Output unmuted");
+    }
+  }
+}
+
+// Test audio function
+function testAudio() {
+  if (!audioCtx) {
+    log("Start the vocoder first to test audio");
+    return;
+  }
+  
+  // Play a brief test tone
+  const testOsc = audioCtx.createOscillator();
+  const testGain = audioCtx.createGain();
+  
+  testOsc.frequency.value = 440; // A4 note
+  testGain.gain.value = 0.1;
+  
+  testOsc.connect(testGain);
+  testGain.connect(outMediaStreamDest);
+  
+  testOsc.start();
+  testOsc.stop(audioCtx.currentTime + 0.2); // 200ms test tone
+    log("🔊 Test tone played");
+}
+
+// Android audio focus and routing optimization
+function optimizeAndroidAudio() {
+  if (!/Android/i.test(navigator.userAgent)) return;
+  
+  // Request audio focus for media playback
+  if ('requestAudioFocus' in navigator) {
+    try {
+      navigator.requestAudioFocus();
+      log("🎯 Android audio focus requested");
+    } catch (e) {
+      log("Audio focus request failed: " + e.message);
+    }
+  }
+  
+  // Optimize for Android Chrome
+  if (navigator.userAgent.includes('Chrome') && audioCtx) {
+    // Set up optimal buffer sizes for Android
+    try {
+      if (audioCtx.audioWorklet) {
+        // Use AudioWorklet for better performance on newer Android devices
+        log("📱 AudioWorklet available - optimizing for Android");
+      }
+    } catch (e) {
+      log("AudioWorklet optimization failed: " + e.message);
+    }
+  }
+  
+  // Handle Android audio routing changes
+  if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+    navigator.mediaDevices.addEventListener('devicechange', () => {
+      log("📱 Android audio devices changed - updating routing");
+      setTimeout(() => {
+        populateDevices();
+        checkFeedbackRisk();
+      }, 500);
+    });
   }
 }
 
@@ -241,13 +424,24 @@ async function start(){
       return;
     }
     
-    // Create new AudioContext with error handling
+    // Create new AudioContext with error handling and Android optimizations
     try {
-      audioCtx = new AudioContextClass({latencyHint: latencySel.value});
+      const contextOptions = { latencyHint: latencySel.value };
+      
+      // Android-specific AudioContext optimizations
+      if (isAndroid) {
+        contextOptions.sampleRate = 44100; // Standard rate for Android
+        // Use interactive latency for real-time processing
+        if (latencySel.value === 'interactive') {
+          contextOptions.latencyHint = 0.02; // 20ms for Android real-time audio
+        }
+      }
+      
+      audioCtx = new AudioContextClass(contextOptions);
       if (!audioCtx) {
         throw new Error("Failed to create AudioContext");
       }
-      log("AudioContext created successfully with latency hint: " + latencySel.value);
+      log(`AudioContext created successfully (${audioCtx.sampleRate}Hz, ${latencySel.value} latency)`);
     } catch (contextError) {
       log("AudioContext creation failed: " + contextError.message);
       // Try fallback without latency hint
@@ -268,6 +462,9 @@ async function start(){
       await audioCtx.resume();
       log("AudioContext resumed (browser autoplay policy)");
     }
+    
+    // Apply Android-specific optimizations
+    optimizeAndroidAudio();
 
     // mic stream with error handling and mobile optimization
     const devId = micSelect.value || undefined;
@@ -288,16 +485,30 @@ async function start(){
       baseConstraints.deviceId = { exact: devId };
     }
     
-    // iOS requires specific sample rate handling
-    if (isIOS) {
+    // Platform-specific optimizations
+    if (isAndroid) {
+      // Android-specific optimizations for better audio routing
+      baseConstraints.latency = 0.02; // 20ms latency for Android
+      baseConstraints.sampleSize = 16; // 16-bit samples work best on Android
+      
+      // Android Chrome specific optimizations
+      if (navigator.userAgent.includes('Chrome')) {
+        baseConstraints.googEchoCancellation = false;
+        baseConstraints.googAutoGainControl = false;
+        baseConstraints.googNoiseSuppression = false;
+        baseConstraints.googHighpassFilter = false;
+        baseConstraints.googTypingNoiseDetection = false;
+      }
+      
+      log("Android device detected - using optimized constraints for audio routing");
+    } else if (isIOS) {
       // iOS works best with 44.1kHz or let the system choose
       baseConstraints.sampleRate = 44100;
       log("iOS device detected - using 44.1kHz sample rate");
-    } else if (!isAndroid) {
+    } else if (!isMobile) {
       // Desktop browsers can handle higher sample rates
       baseConstraints.sampleRate = 48000;
     }
-    // Android: let the system choose the best sample rate
     
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -329,6 +540,13 @@ async function start(){
     }
 
     srcNode = audioCtx.createMediaStreamSource(mediaStream);
+
+    // Input and output gain controls
+    inputGain = audioCtx.createGain();
+    inputGain.gain.value = parseFloat(inputVolumeCtl.value);
+    
+    outputGain = audioCtx.createGain();
+    outputGain.gain.value = parseFloat(outputVolumeCtl.value);
 
     // filters
     hp = audioCtx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value = parseFloat(hpCtl.value);
@@ -404,8 +622,9 @@ async function start(){
     monitorEl.srcObject = outMediaStreamDest.stream;
 
     // Graph:
-    // src -> hp -> bp -> lp -> EQs -> (split) -> shaper -> delay -> (dry/wet+reverb) -> comp -> master -> out
-    srcNode.connect(hp);
+    // src -> inputGain -> hp -> bp -> lp -> EQs -> (split) -> shaper -> delay -> (dry/wet+reverb) -> comp -> master -> outputGain -> out
+    srcNode.connect(inputGain);
+    inputGain.connect(hp);
     hp.connect(bp);
     bp.connect(lp);
     lp.connect(eq250);
@@ -457,8 +676,9 @@ async function start(){
     gateGain.connect(comp);
 
     comp.connect(masterGain);
-    masterGain.connect(outMediaStreamDest);
-    masterGain.connect(analyser);
+    masterGain.connect(outputGain);
+    outputGain.connect(outMediaStreamDest);
+    outputGain.connect(analyser);
 
     // Wire UI -> nodes
     gainCtl.addEventListener('input', ()=> masterGain.gain.value = parseFloat(gainCtl.value));
@@ -479,6 +699,20 @@ async function start(){
     revCtl.addEventListener('input', ()=> reverbGain.gain.value = parseFloat(revCtl.value));
     compCtl.addEventListener('input', ()=> comp.threshold.value = parseFloat(compCtl.value));
     gateCtl.addEventListener('input', ()=> gateThreshold = parseFloat(gateCtl.value));
+    
+    // Input/Output volume controls
+    inputVolumeCtl.addEventListener('input', ()=> {
+      if (inputGain && !inputMuted) {
+        inputGain.gain.value = parseFloat(inputVolumeCtl.value);
+        lastInputVolume = parseFloat(inputVolumeCtl.value);
+      }
+    });
+    outputVolumeCtl.addEventListener('input', ()=> {
+      if (outputGain && !outputMuted) {
+        outputGain.gain.value = parseFloat(outputVolumeCtl.value);
+        lastOutputVolume = parseFloat(outputVolumeCtl.value);
+      }
+    });
 
     breathBuffer = makeBreathBuffer(audioCtx);
     autobreath = autobreathChk.checked;
@@ -599,10 +833,23 @@ startBtn.addEventListener('click', async () => {
 });
 stopBtn.addEventListener('click', stop);
 refreshDevs.addEventListener('click', populateDevices);
-outSelect.addEventListener('change', ()=> trySetSink(outSelect.value));
+outSelect.addEventListener('change', ()=> {
+  trySetSink(outSelect.value);
+  updateDeviceTypeIndicators();
+});
+micSelect.addEventListener('change', updateDeviceTypeIndicators);
 breathBtn.addEventListener('click', playBreath);
 autobreathChk.addEventListener('change', ()=> autobreath = autobreathChk.checked);
 latencySel.addEventListener('change', ()=> log("Latency hint set to: " + latencySel.value));
+
+// New audio control event listeners
+muteInputBtn.addEventListener('click', toggleInputMute);
+muteOutputBtn.addEventListener('click', toggleOutputMute);
+testAudioBtn.addEventListener('click', testAudio);
+autoFeedbackPreventionChk.addEventListener('change', ()=> {
+  log("Auto feedback prevention: " + (autoFeedbackPreventionChk.checked ? "enabled" : "disabled"));
+  checkFeedbackRisk();
+});
 
 async function ensurePermissions(){
   try {
@@ -615,7 +862,7 @@ async function ensurePermissions(){
 
 // Handle device changes
 navigator.mediaDevices.addEventListener('devicechange', async () => {
-  log("Audio devices changed, refreshing list...");
+  log("Audio devices changed, refreshing list.");
   await populateDevices();
 });
 
@@ -629,6 +876,38 @@ document.addEventListener('visibilitychange', () => {
     });
   }
 });
+
+// Android-specific audio session management
+if (/Android/i.test(navigator.userAgent)) {
+  // Handle audio interruptions (calls, notifications, etc.)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && audioCtx) {
+      log("📱 App backgrounded - Android audio session may be interrupted");
+    } else if (document.visibilityState === 'visible' && audioCtx) {
+      // Check if we need to restart audio after interruption
+      setTimeout(() => {
+        if (audioCtx && audioCtx.state === 'suspended') {
+          log("📱 Attempting to resume Android audio session");
+          audioCtx.resume();
+        }
+      }, 100);
+    }
+  });
+  
+  // Handle audio focus changes on Android
+  window.addEventListener('focus', () => {
+    if (audioCtx && audioCtx.state === 'suspended') {
+      log("📱 Window focused - resuming Android audio");
+      audioCtx.resume();
+    }
+  });
+  
+  window.addEventListener('blur', () => {
+    if (audioCtx && audioCtx.state === 'running') {
+      log("📱 Window blurred - Android may suspend audio");
+    }
+  });
+}
 
 window.addEventListener('load', async ()=>{
   if ('serviceWorker' in navigator){

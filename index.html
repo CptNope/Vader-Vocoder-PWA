@@ -29,20 +29,60 @@
 
   <main>
     <section class="devices">
-      <h2>Devices</h2>
-      <div class="row">
-        <label for="micSelect">Microphone</label>
-        <select id="micSelect"></select>
-        <button id="refreshDevs">↻</button>
+      <h2>Audio Devices & Routing</h2>
+      
+      <!-- Input Device Selection -->
+      <div class="device-group">
+        <h3>🎤 Input Device</h3>
+        <div class="row">
+          <label for="micSelect">Microphone</label>
+          <select id="micSelect"></select>
+          <span id="micType" class="device-type"></span>
+          <button id="refreshDevs">↻</button>
+        </div>
+        <div class="row">
+          <label>Input Volume
+            <input id="inputVolume" type="range" min="0" max="2" step="0.01" value="1.0">
+            <output id="inputVolumeOut">1.0</output>
+          </label>
+          <button id="muteInput" class="mute-btn">🔇 Mute Input</button>
+        </div>
       </div>
-      <div class="row">
-        <label for="outSelect">Audio Output</label>
-        <select id="outSelect" title="Requires browser support for setSinkId"></select>
-        <small class="hint">Tip: Bluetooth speakers/headsets should be paired at the OS level first.</small>
+
+      <!-- Output Device Selection -->
+      <div class="device-group">
+        <h3>🔊 Output Device</h3>
+        <div class="row">
+          <label for="outSelect">Audio Output</label>
+          <select id="outSelect" title="Requires browser support for setSinkId"></select>
+          <span id="outType" class="device-type"></span>
+        </div>
+        <div class="row">
+          <label>Output Volume
+            <input id="outputVolume" type="range" min="0" max="2" step="0.01" value="0.8">
+            <output id="outputVolumeOut">0.8</output>
+          </label>
+          <button id="muteOutput" class="mute-btn">🔇 Mute Output</button>
+        </div>
+        <small class="hint">💡 Use different devices for mic and speakers to prevent feedback</small>
       </div>
+
+      <!-- Feedback Prevention -->
+      <div class="device-group">
+        <h3>🛡️ Feedback Prevention</h3>
+        <div class="row">
+          <label><input type="checkbox" id="autoFeedbackPrevention" checked> Auto Feedback Prevention</label>
+          <button id="testAudio">🔊 Test Audio</button>
+        </div>
+        <div class="row feedback-warning hidden" id="feedbackWarning">
+          ⚠️ Same device detected for input and output - feedback risk!
+        </div>
+      </div>
+
+      <!-- Control Buttons -->
       <div class="row">
-        <button id="startBtn">Start</button>
-        <button id="stopBtn" disabled>Stop</button>
+        <button id="startBtn">▶️ Start Vocoder</button>
+        <button id="stopBtn" disabled>⏹️ Stop</button>
       </div>
     </section>
 
