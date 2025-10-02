@@ -101,19 +101,40 @@ function log(s){ logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHe
 // Device type detection
 function detectDeviceType(device) {
   const label = device.label.toLowerCase();
-  if (label.includes('bluetooth') || label.includes('bt') || 
+  
+  // Mobile-specific audio outputs
+  if (label.includes('earpiece') || label.includes('ear speaker') || label.includes('receiver')) {
+    return 'earpiece';
+  } else if (label.includes('speakerphone') || label.includes('speaker phone') || label.includes('loud speaker')) {
+    return 'speakerphone';
+  }
+  
+  // Bluetooth devices
+  else if (label.includes('bluetooth') || label.includes('bt') || 
       label.includes('airpods') || label.includes('buds') || 
       label.includes('headphones') || label.includes('speaker') ||
       label.includes('jbl') || label.includes('bose') || label.includes('sony') ||
-      label.includes('beats') || label.includes('skullcandy')) {
+      label.includes('beats') || label.includes('skullcandy') || label.includes('anker') ||
+      label.includes('marshall') || label.includes('harman') || label.includes('ultimate ears')) {
     return 'bluetooth';
-  } else if (label.includes('usb') || label.includes('headset') || label.includes('wired')) {
+  } 
+  
+  // Wired devices
+  else if (label.includes('usb') || label.includes('headset') || label.includes('wired') || 
+           label.includes('3.5mm') || label.includes('jack')) {
     return 'wired';
-  } else if (label.includes('wireless') && !label.includes('built-in')) {
+  } 
+  
+  // Wireless (non-Bluetooth)
+  else if (label.includes('wireless') && !label.includes('built-in')) {
     return 'wireless';
-  } else if (label.includes('built-in') || label.includes('internal') || label.includes('default')) {
+  } 
+  
+  // Built-in/default
+  else if (label.includes('built-in') || label.includes('internal') || label.includes('default')) {
     return 'built-in';
   }
+  
   return 'unknown';
 }
 
@@ -343,31 +364,76 @@ function testAudio() {
     log("🔊 Test tone played");
 }
 
-// Diagnostic function for Bluetooth troubleshooting
+// Diagnostic function for mobile audio routing and Bluetooth troubleshooting
 function diagnoseBluetooth() {
-  log("🔍 Bluetooth Audio Diagnostics:");
-  log(`Browser: ${navigator.userAgent}`);
+  log("🔍 Mobile Audio & Bluetooth Diagnostics:");
+  
+  // Device and browser info
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const isMobile = isAndroid || isIOS;
+  
+  log(`Device: ${isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop'}`);
+  log(`Browser: ${navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge)\/[\d.]+/)?.[0] || 'Unknown'}`);
   log(`HTTPS: ${location.protocol === 'https:'}`);
+  log(`Mobile: ${isMobile}`);
+  
+  // API support
   log(`selectAudioOutput API: ${'selectAudioOutput' in navigator.mediaDevices}`);
   log(`setSinkId API: ${'setSinkId' in HTMLMediaElement.prototype}`);
+  log(`enumerateDevices API: ${'enumerateDevices' in navigator.mediaDevices}`);
+  
+  // Check permissions
+  navigator.permissions?.query({name: 'microphone'}).then(result => {
+    log(`Microphone permission: ${result.state}`);
+  }).catch(() => {
+    log("Microphone permission: Unable to check");
+  });
   
   // Check current audio devices
   navigator.mediaDevices.enumerateDevices().then(devices => {
     const outputs = devices.filter(d => d.kind === 'audiooutput');
-    log(`Total output devices found: ${outputs.length}`);
+    const inputs = devices.filter(d => d.kind === 'audioinput');
     
+    log(`📱 Audio Input Devices: ${inputs.length}`);
+    inputs.forEach((device, index) => {
+      const hasLabel = device.label && device.label.trim() !== '';
+      const deviceType = detectDeviceType(device);
+      log(`  ${index + 1}. ${hasLabel ? device.label : '[No Label]'} (${deviceType})`);
+    });
+    
+    log(`🔊 Audio Output Devices: ${outputs.length}`);
     outputs.forEach((device, index) => {
       const hasLabel = device.label && device.label.trim() !== '';
       const deviceType = detectDeviceType(device);
       log(`  ${index + 1}. ${hasLabel ? device.label : '[No Label - Permission Required]'} (${deviceType})`);
     });
     
+    // Mobile-specific guidance
+    if (isMobile && outputs.length <= 1) {
+      log("⚠️ Expected mobile audio outputs not found:");
+      log("   📞 Earpiece/Receiver (for calls)");
+      log("   📢 Speakerphone (loud speaker)");
+      log("   🎧 Bluetooth devices (if paired)");
+      log("");
+      log("💡 Mobile troubleshooting:");
+      log("   1. Grant microphone permission first");
+      log("   2. Ensure Bluetooth devices are paired in Settings");
+      log("   3. Try Chrome/Edge for better mobile audio support");
+      log("   4. Check if other apps can access your Bluetooth speaker");
+      
+      if (isAndroid) {
+        log("   5. Android: Check 'Phone' app permissions");
+        log("   6. Android: Disable 'Absolute Volume' in Developer Options");
+      }
+    }
+    
     if (outputs.length === 0) {
       log("❌ No output devices detected");
       log("💡 This usually means:");
       log("   - Browser doesn't support output device enumeration");
+      log("   - Permissions not granted");
       log("   - No additional audio devices are connected");
-      log("   - Bluetooth devices aren't properly paired");
     }
   }).catch(e => {
     log("❌ Failed to enumerate devices: " + e.message);
@@ -417,21 +483,31 @@ async function requestSpeakerPermission() {
       log("💡 Try Chrome 105+ or Edge 105+ for best Bluetooth speaker support");
     }
     
-    // Method 2: Try requesting microphone permission (sometimes helps with speaker enumeration)
+    // Method 2: Try requesting microphone permission (unlocks mobile audio routing)
     try {
-      log("🎤 Requesting microphone permission to unlock device enumeration...");
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
+      log("🎤 Requesting microphone permission to unlock mobile audio routing...");
+      
+      // For mobile devices, request more comprehensive audio permissions
+      const isMobile = /Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+      const constraints = {
+        audio: {
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false 
-        } 
-      });
+          autoGainControl: false
+        }
+      };
+      
+      // On mobile, also try to request access to different audio sources
+      if (isMobile) {
+        log("📱 Mobile device detected - requesting comprehensive audio access");
+      }
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       stream.getTracks().forEach(track => track.stop());
       log("✅ Audio permission granted - refreshing device list");
       
-      // Wait a moment for devices to be available
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Wait longer for mobile devices to enumerate properly
+      await new Promise(resolve => setTimeout(resolve, isMobile ? 1000 : 500));
       
       // Refresh devices after getting permission
       await populateDevices();
@@ -440,15 +516,27 @@ async function requestSpeakerPermission() {
       const outputOptions = [...outSelect.options].filter(opt => opt.value !== '');
       if (outputOptions.length > 0) {
         log(`🔊 Found ${outputOptions.length} additional output device(s)`);
+        
+        // Check for mobile-specific devices
+        const mobileDevices = outputOptions.filter(opt => {
+          const type = opt.dataset.deviceType;
+          return type === 'earpiece' || type === 'speakerphone' || type === 'bluetooth';
+        });
+        
+        if (mobileDevices.length > 0) {
+          log(`📱 Mobile audio devices found: ${mobileDevices.length}`);
+        }
+        
         requestSpeakerPermissionBtn.textContent = "✅ Devices Updated";
       } else {
         log("⚠️ Still no additional output devices available");
-        log("💡 Bluetooth troubleshooting:");
-        log("   1. Ensure Bluetooth speaker is paired in Windows/Android settings");
-        log("   2. Set Bluetooth speaker as default audio device in OS");
-        log("   3. Try connecting to speaker from another app first");
+        log("💡 Mobile audio troubleshooting:");
+        log("   1. Ensure Bluetooth speaker is paired in device Settings");
+        log("   2. Try making a phone call first (activates audio routing)");
+        log("   3. Check if speaker works in other apps (YouTube, Music)");
         log("   4. Restart browser after pairing new Bluetooth device");
-        requestSpeakerPermissionBtn.textContent = "⚠️ No BT Devices";
+        log("   5. Some devices require 'Phone' app permissions for audio routing");
+        requestSpeakerPermissionBtn.textContent = "⚠️ No Mobile Audio";
       }
       
       setTimeout(() => {

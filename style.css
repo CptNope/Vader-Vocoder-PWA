@@ -22,6 +22,9 @@ audio{display:none}
 .device-type.wired{color:#4CAF50}
 .device-type.wireless{color:#2196F3}
 .device-type.bluetooth{color:#9C27B0}
+.device-type.earpiece{color:#FF9800}
+.device-type.speakerphone{color:#F44336}
+.device-type.built-in{color:#757575}
 
 /* Mute Buttons */
 .mute-btn{background:#d32f2f;color:white;min-width:120px}
