@@ -53,6 +53,7 @@ const testAudioBtn = document.getElementById('testAudio');
 const feedbackWarning = document.getElementById('feedbackWarning');
 const micTypeEl = document.getElementById('micType');
 const outTypeEl = document.getElementById('outType');
+const requestSpeakerPermissionBtn = document.getElementById('requestSpeakerPermission');
 
 // Ranges / selects
 const gainCtl = linkRange('gain','gainOut');
@@ -151,9 +152,30 @@ async function populateDevices(){
       log("Microphone permission denied or unavailable: " + permError.message);
     }
 
+    // Request speaker access permission for output device enumeration
+    let speakerPermissionGranted = false;
+    try {
+      // Try to request speaker selection permission
+      if ('selectAudioOutput' in navigator.mediaDevices) {
+        // This is a newer API that explicitly requests speaker permission
+        await navigator.mediaDevices.selectAudioOutput();
+        speakerPermissionGranted = true;
+        log("Speaker selection permission granted");
+      }
+    } catch (speakerError) {
+      log("Speaker selection permission not available or denied: " + speakerError.message);
+    }
+
     const devices = await navigator.mediaDevices.enumerateDevices();
     const inputs = devices.filter(d => d.kind === 'audioinput');
-    const outputs = devices.filter(d => d.kind === 'audiooutput');
+    let outputs = devices.filter(d => d.kind === 'audiooutput');
+    
+    // Check if we have proper output device labels
+    const hasOutputLabels = outputs.some(d => d.label && d.label !== '');
+    if (!hasOutputLabels && outputs.length > 0) {
+      log("⚠️ Output devices found but labels are hidden. This may be due to browser security restrictions.");
+      log("💡 Try: 1) Allow microphone permission, 2) Use HTTPS, 3) Check browser settings");
+    }
 
     micSelect.innerHTML = '';
     if (inputs.length === 0) {
@@ -175,22 +197,50 @@ async function populateDevices(){
     }
 
     outSelect.innerHTML = '';
+    
+    // Always add a default option first
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = 'System Default Speakers';
+    defaultOpt.dataset.deviceType = 'built-in';
+    outSelect.appendChild(defaultOpt);
+    
     if (outputs.length === 0) {
-      const opt = document.createElement('option');
-      opt.value = '';
-      opt.textContent = 'Default speakers';
-      outSelect.appendChild(opt);
-      log("No audio output devices found, using default");
+      log("No additional audio output devices found, using system default");
     } else {
-      outputs.forEach((d, index) => {
-        const opt = document.createElement('option');
-        opt.value = d.deviceId;
-        // Use device label if available, otherwise create descriptive name
-        opt.textContent = d.label || `Speaker ${index + 1}`;
-        opt.dataset.deviceType = detectDeviceType(d);
-        outSelect.appendChild(opt);
-      });
-      log(`Found ${outputs.length} audio output(s)`);
+      // Filter out devices without labels (usually means no permission)
+      const validOutputs = outputs.filter(d => d.label && d.label.trim() !== '');
+      
+      if (validOutputs.length === 0 && outputs.length > 0) {
+        // We have devices but no labels - permission issue
+        log(`⚠️ Found ${outputs.length} output device(s) but cannot access labels`);
+        log("🔒 This is usually due to browser security restrictions");
+        log("💡 To access specific speakers: Enable microphone permission first, then refresh devices");
+        
+        // Add generic options for the unlabeled devices
+        outputs.forEach((d, index) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = `Audio Output ${index + 1} (Permission Required)`;
+          opt.dataset.deviceType = 'unknown';
+          opt.disabled = true; // Disable since we can't use them properly
+          outSelect.appendChild(opt);
+        });
+      } else {
+        // Add valid devices with labels
+        validOutputs.forEach((d, index) => {
+          const opt = document.createElement('option');
+          opt.value = d.deviceId;
+          opt.textContent = d.label;
+          opt.dataset.deviceType = detectDeviceType(d);
+          outSelect.appendChild(opt);
+        });
+        log(`Found ${validOutputs.length} accessible audio output device(s)`);
+        
+        if (validOutputs.length < outputs.length) {
+          log(`Note: ${outputs.length - validOutputs.length} additional device(s) require permission`);
+        }
+      }
     }
 
     if (preferredSinkId && [...outSelect.options].some(o => o.value===preferredSinkId)){
@@ -286,6 +336,78 @@ function testAudio() {
   testOsc.start();
   testOsc.stop(audioCtx.currentTime + 0.2); // 200ms test tone
     log("🔊 Test tone played");
+}
+
+// Request speaker permission explicitly
+async function requestSpeakerPermission() {
+  try {
+    requestSpeakerPermissionBtn.disabled = true;
+    requestSpeakerPermissionBtn.textContent = "🔄 Requesting...";
+    
+    // Method 1: Try the newer selectAudioOutput API
+    if ('selectAudioOutput' in navigator.mediaDevices) {
+      try {
+        const device = await navigator.mediaDevices.selectAudioOutput();
+        log("✅ Speaker permission granted via selectAudioOutput");
+        log(`Selected device: ${device.label || device.deviceId}`);
+        
+        // Set the selected device as preferred
+        if (device.deviceId) {
+          preferredSinkId = device.deviceId;
+          await populateDevices();
+          outSelect.value = device.deviceId;
+          await trySetSink(device.deviceId);
+        }
+        
+        requestSpeakerPermissionBtn.textContent = "✅ Permission Granted";
+        setTimeout(() => {
+          requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
+          requestSpeakerPermissionBtn.disabled = false;
+        }, 2000);
+        return;
+      } catch (selectError) {
+        log("selectAudioOutput failed: " + selectError.message);
+      }
+    }
+    
+    // Method 2: Try requesting microphone permission (sometimes helps with speaker enumeration)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: { 
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false 
+        } 
+      });
+      stream.getTracks().forEach(track => track.stop());
+      log("✅ Audio permission granted - this may help with speaker access");
+      
+      // Refresh devices after getting permission
+      await populateDevices();
+      
+      requestSpeakerPermissionBtn.textContent = "🔄 Check Speakers";
+      setTimeout(() => {
+        requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
+        requestSpeakerPermissionBtn.disabled = false;
+      }, 1000);
+      
+    } catch (micError) {
+      log("Could not get audio permission: " + micError.message);
+      requestSpeakerPermissionBtn.textContent = "❌ Permission Denied";
+      setTimeout(() => {
+        requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
+        requestSpeakerPermissionBtn.disabled = false;
+      }, 2000);
+    }
+    
+  } catch (error) {
+    log("Speaker permission request failed: " + error.message);
+    requestSpeakerPermissionBtn.textContent = "❌ Failed";
+    setTimeout(() => {
+      requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
+      requestSpeakerPermissionBtn.disabled = false;
+    }, 2000);
+  }
 }
 
 // Android audio focus and routing optimization
@@ -786,15 +908,35 @@ function stop(){
 
 async function trySetSink(id){
   if (!('setSinkId' in HTMLMediaElement.prototype)){
-    log("Output device selection not supported in this browser. The OS default output will be used.");
-    return;
+    log("⚠️ Output device selection not supported in this browser");
+    log("💡 Try using Chrome/Edge for speaker selection support");
+    return false;
   }
+  
+  if (!id) {
+    log("🔊 Using system default audio output");
+    return true;
+  }
+  
   try {
     await monitorEl.setSinkId(id);
     preferredSinkId = id;
-    log("Output routed to: " + id);
+    const deviceName = outSelect.selectedOptions[0]?.textContent || id;
+    log(`✅ Audio output routed to: ${deviceName}`);
+    return true;
   } catch(e){
-    log("setSinkId failed: " + e.message);
+    log(`❌ Failed to set audio output: ${e.message}`);
+    
+    // Provide specific error guidance
+    if (e.name === 'NotAllowedError') {
+      log("🔒 Permission denied - try clicking 'Enable Speakers' button");
+    } else if (e.name === 'NotFoundError') {
+      log("📱 Device not found - it may have been disconnected");
+    } else if (e.name === 'AbortError') {
+      log("⚠️ Operation aborted - device may be in use by another app");
+    }
+    
+    return false;
   }
 }
 
@@ -846,6 +988,7 @@ latencySel.addEventListener('change', ()=> log("Latency hint set to: " + latency
 muteInputBtn.addEventListener('click', toggleInputMute);
 muteOutputBtn.addEventListener('click', toggleOutputMute);
 testAudioBtn.addEventListener('click', testAudio);
+requestSpeakerPermissionBtn.addEventListener('click', requestSpeakerPermission);
 autoFeedbackPreventionChk.addEventListener('change', ()=> {
   log("Auto feedback prevention: " + (autoFeedbackPreventionChk.checked ? "enabled" : "disabled"));
   checkFeedbackRisk();

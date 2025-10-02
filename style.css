@@ -28,6 +28,11 @@ audio{display:none}
 .mute-btn.muted{background:#666;color:#ccc}
 .mute-btn:hover:not(.muted){background:#f44336}
 
+/* Permission Button */
+.permission-btn{background:#ff9800;color:white;min-width:140px;font-size:0.9rem}
+.permission-btn:hover{background:#f57c00}
+.permission-btn:disabled{background:#666;color:#ccc}
+
 /* Feedback Warning */
 .feedback-warning{background:#ff5722;color:white;padding:8px;border-radius:6px;font-weight:bold;animation:pulse 2s infinite}
 .hidden{display:none}
