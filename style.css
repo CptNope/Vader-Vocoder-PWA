@@ -33,6 +33,10 @@ audio{display:none}
 .permission-btn:hover{background:#f57c00}
 .permission-btn:disabled{background:#666;color:#ccc}
 
+/* Diagnostic Button */
+.diagnostic-btn{background:#2196F3;color:white;min-width:120px;font-size:0.9rem}
+.diagnostic-btn:hover{background:#1976D2}
+
 /* Feedback Warning */
 .feedback-warning{background:#ff5722;color:white;padding:8px;border-radius:6px;font-weight:bold;animation:pulse 2s infinite}
 .hidden{display:none}

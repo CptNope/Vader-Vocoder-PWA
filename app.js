@@ -54,6 +54,7 @@ const feedbackWarning = document.getElementById('feedbackWarning');
 const micTypeEl = document.getElementById('micType');
 const outTypeEl = document.getElementById('outType');
 const requestSpeakerPermissionBtn = document.getElementById('requestSpeakerPermission');
+const diagnoseBluetoothBtn = document.getElementById('diagnoseBluetooth');
 
 // Ranges / selects
 const gainCtl = linkRange('gain','gainOut');
@@ -100,11 +101,15 @@ function log(s){ logEl.textContent += s + "\n"; logEl.scrollTop = logEl.scrollHe
 // Device type detection
 function detectDeviceType(device) {
   const label = device.label.toLowerCase();
-  if (label.includes('bluetooth') || label.includes('bt') || label.includes('wireless')) {
+  if (label.includes('bluetooth') || label.includes('bt') || 
+      label.includes('airpods') || label.includes('buds') || 
+      label.includes('headphones') || label.includes('speaker') ||
+      label.includes('jbl') || label.includes('bose') || label.includes('sony') ||
+      label.includes('beats') || label.includes('skullcandy')) {
     return 'bluetooth';
-  } else if (label.includes('usb') || label.includes('headset') || label.includes('headphone')) {
+  } else if (label.includes('usb') || label.includes('headset') || label.includes('wired')) {
     return 'wired';
-  } else if (label.includes('airpods') || label.includes('wireless') || label.includes('buds')) {
+  } else if (label.includes('wireless') && !label.includes('built-in')) {
     return 'wireless';
   } else if (label.includes('built-in') || label.includes('internal') || label.includes('default')) {
     return 'built-in';
@@ -338,15 +343,49 @@ function testAudio() {
     log("🔊 Test tone played");
 }
 
+// Diagnostic function for Bluetooth troubleshooting
+function diagnoseBluetooth() {
+  log("🔍 Bluetooth Audio Diagnostics:");
+  log(`Browser: ${navigator.userAgent}`);
+  log(`HTTPS: ${location.protocol === 'https:'}`);
+  log(`selectAudioOutput API: ${'selectAudioOutput' in navigator.mediaDevices}`);
+  log(`setSinkId API: ${'setSinkId' in HTMLMediaElement.prototype}`);
+  
+  // Check current audio devices
+  navigator.mediaDevices.enumerateDevices().then(devices => {
+    const outputs = devices.filter(d => d.kind === 'audiooutput');
+    log(`Total output devices found: ${outputs.length}`);
+    
+    outputs.forEach((device, index) => {
+      const hasLabel = device.label && device.label.trim() !== '';
+      const deviceType = detectDeviceType(device);
+      log(`  ${index + 1}. ${hasLabel ? device.label : '[No Label - Permission Required]'} (${deviceType})`);
+    });
+    
+    if (outputs.length === 0) {
+      log("❌ No output devices detected");
+      log("💡 This usually means:");
+      log("   - Browser doesn't support output device enumeration");
+      log("   - No additional audio devices are connected");
+      log("   - Bluetooth devices aren't properly paired");
+    }
+  }).catch(e => {
+    log("❌ Failed to enumerate devices: " + e.message);
+  });
+}
+
 // Request speaker permission explicitly
 async function requestSpeakerPermission() {
   try {
     requestSpeakerPermissionBtn.disabled = true;
     requestSpeakerPermissionBtn.textContent = "🔄 Requesting...";
     
+    log("🔍 Attempting to access audio output devices...");
+    
     // Method 1: Try the newer selectAudioOutput API
     if ('selectAudioOutput' in navigator.mediaDevices) {
       try {
+        log("📱 Using selectAudioOutput API (Chrome 105+)");
         const device = await navigator.mediaDevices.selectAudioOutput();
         log("✅ Speaker permission granted via selectAudioOutput");
         log(`Selected device: ${device.label || device.deviceId}`);
@@ -366,12 +405,21 @@ async function requestSpeakerPermission() {
         }, 2000);
         return;
       } catch (selectError) {
-        log("selectAudioOutput failed: " + selectError.message);
+        log("❌ selectAudioOutput failed: " + selectError.message);
+        if (selectError.name === 'NotAllowedError') {
+          log("🔒 User denied speaker selection permission");
+        } else if (selectError.name === 'NotFoundError') {
+          log("📱 No additional audio output devices found");
+        }
       }
+    } else {
+      log("⚠️ selectAudioOutput API not available in this browser");
+      log("💡 Try Chrome 105+ or Edge 105+ for best Bluetooth speaker support");
     }
     
     // Method 2: Try requesting microphone permission (sometimes helps with speaker enumeration)
     try {
+      log("🎤 Requesting microphone permission to unlock device enumeration...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
           echoCancellation: false,
@@ -380,19 +428,37 @@ async function requestSpeakerPermission() {
         } 
       });
       stream.getTracks().forEach(track => track.stop());
-      log("✅ Audio permission granted - this may help with speaker access");
+      log("✅ Audio permission granted - refreshing device list");
+      
+      // Wait a moment for devices to be available
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Refresh devices after getting permission
       await populateDevices();
       
-      requestSpeakerPermissionBtn.textContent = "🔄 Check Speakers";
+      // Check if we now have more output options
+      const outputOptions = [...outSelect.options].filter(opt => opt.value !== '');
+      if (outputOptions.length > 0) {
+        log(`🔊 Found ${outputOptions.length} additional output device(s)`);
+        requestSpeakerPermissionBtn.textContent = "✅ Devices Updated";
+      } else {
+        log("⚠️ Still no additional output devices available");
+        log("💡 Bluetooth troubleshooting:");
+        log("   1. Ensure Bluetooth speaker is paired in Windows/Android settings");
+        log("   2. Set Bluetooth speaker as default audio device in OS");
+        log("   3. Try connecting to speaker from another app first");
+        log("   4. Restart browser after pairing new Bluetooth device");
+        requestSpeakerPermissionBtn.textContent = "⚠️ No BT Devices";
+      }
+      
       setTimeout(() => {
         requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
         requestSpeakerPermissionBtn.disabled = false;
-      }, 1000);
+      }, 3000);
       
     } catch (micError) {
-      log("Could not get audio permission: " + micError.message);
+      log("❌ Could not get audio permission: " + micError.message);
+      log("🔒 This may prevent Bluetooth device enumeration");
       requestSpeakerPermissionBtn.textContent = "❌ Permission Denied";
       setTimeout(() => {
         requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
@@ -401,7 +467,7 @@ async function requestSpeakerPermission() {
     }
     
   } catch (error) {
-    log("Speaker permission request failed: " + error.message);
+    log("❌ Speaker permission request failed: " + error.message);
     requestSpeakerPermissionBtn.textContent = "❌ Failed";
     setTimeout(() => {
       requestSpeakerPermissionBtn.textContent = "🔓 Enable Speakers";
@@ -989,6 +1055,7 @@ muteInputBtn.addEventListener('click', toggleInputMute);
 muteOutputBtn.addEventListener('click', toggleOutputMute);
 testAudioBtn.addEventListener('click', testAudio);
 requestSpeakerPermissionBtn.addEventListener('click', requestSpeakerPermission);
+diagnoseBluetoothBtn.addEventListener('click', diagnoseBluetooth);
 autoFeedbackPreventionChk.addEventListener('change', ()=> {
   log("Auto feedback prevention: " + (autoFeedbackPreventionChk.checked ? "enabled" : "disabled"));
   checkFeedbackRisk();
