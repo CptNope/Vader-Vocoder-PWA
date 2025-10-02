@@ -1,5 +1,5 @@
 // Service worker for offline caching and updates
-const CACHE = 'vader-vocoder-v3.6'; // Increment this to force updates
+const CACHE = 'vader-vocoder-v3.7'; // Increment this to force updates
 const ASSETS = [
   './',
   './index.html',
