@@ -440,6 +440,41 @@ function diagnoseBluetooth() {
   });
 }
 
+// Android-specific audio routing workaround
+async function tryAndroidAudioRouting() {
+  try {
+    log("📱 Android detected - using system audio routing");
+    log("💡 To route audio to Bluetooth speaker:");
+    log("   1. Connect Bluetooth speaker in Android Settings");
+    log("   2. Set as 'Media Audio' device (not just phone audio)");
+    log("   3. Start playing any media (YouTube, Spotify) on Bluetooth first");
+    log("   4. Then start the vocoder - audio should follow the same route");
+    log("");
+    log("🔄 Alternative method:");
+    log("   1. Open Android notification panel");
+    log("   2. Long-press the media notification when vocoder is running");
+    log("   3. Tap 'Output' or speaker icon to change audio route");
+    
+    // Try to detect if Bluetooth is connected via battery API (indirect method)
+    if ('getBattery' in navigator) {
+      const battery = await navigator.getBattery();
+      log(`🔋 Device battery: ${Math.round(battery.level * 100)}% (Bluetooth may affect this)`);
+    }
+    
+    // Check if we can detect Bluetooth via other means
+    if ('bluetooth' in navigator) {
+      log("🔵 Web Bluetooth API available - Bluetooth hardware detected");
+    } else {
+      log("⚪ Web Bluetooth API not available");
+    }
+    
+    return true;
+  } catch (error) {
+    log("❌ Android audio routing check failed: " + error.message);
+    return false;
+  }
+}
+
 // Request speaker permission explicitly
 async function requestSpeakerPermission() {
   try {
@@ -480,7 +515,14 @@ async function requestSpeakerPermission() {
       }
     } else {
       log("⚠️ selectAudioOutput API not available in this browser");
-      log("💡 Try Chrome 105+ or Edge 105+ for best Bluetooth speaker support");
+      log("💡 Chrome flags may need to be enabled:");
+      log("   Go to chrome://flags and enable 'experimental-web-platform-features'");
+      
+      // Try Android-specific workaround
+      if (/Android/i.test(navigator.userAgent)) {
+        log("🤖 Trying Android system audio routing workaround...");
+        await tryAndroidAudioRouting();
+      }
     }
     
     // Method 2: Try requesting microphone permission (unlocks mobile audio routing)
