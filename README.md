@@ -10,6 +10,9 @@ A Progressive Web App that transforms your voice into a Darth Vader-like effect 
 - **Live microphone input** with configurable device selection
 - **Real-time audio effects** processing with minimal latency
 - **Multiple output devices** support (where browser supports setSinkId)
+- **Separate input/output volume controls** to prevent feedback
+- **Independent mute buttons** for input and output
+- **Device type detection** with color-coded indicators (wired, wireless, Bluetooth, built-in)
 
 ### 🎛️ Advanced Audio Controls
 - **Master Gain** - Overall volume control
@@ -35,6 +38,16 @@ A Progressive Web App that transforms your voice into a Darth Vader-like effect 
 - **Offline Ready** - Service worker for offline functionality
 - **Responsive Design** - Works on desktop, tablet, and mobile
 - **Device Auto-Detection** - Automatic audio device enumeration
+- **Auto Feedback Prevention** - Detects and prevents audio feedback loops
+- **Diagnostic Tools** - Built-in Bluetooth and audio troubleshooting
+
+### 🌐 Cross-Platform Support
+- **📱 Android** - Optimized for Samsung, Pixel, and other Android devices
+- **🍎 iOS** - Full support for iPhone and iPad
+- **🐧 Linux** - PulseAudio and PipeWire compatibility
+- **🍓 Raspberry Pi** - Performance-tuned for ARM processors
+- **🪟 Windows** - Full desktop support
+- **🍎 macOS** - Native macOS compatibility
 
 ## File Structure
 
@@ -114,6 +127,136 @@ php -S localhost:5500
 - **Background Limitations**: iOS may pause audio when switching apps
 - **Bluetooth Support**: AirPods and other Bluetooth devices work seamlessly
 
+#### 🐧 Linux Installation (Desktop & Laptop)
+
+**Installing as PWA**
+1. **Open Chrome or Chromium** on your Linux system
+2. **Navigate** to the Vader Vocoder URL
+3. **Click the install icon** in the address bar (⊕ or computer icon)
+   - Or go to Menu (⋮) → "Install Vader Vocoder..."
+4. **Grant microphone permission** when prompted
+5. **Launch** from your application menu or desktop
+
+**Linux-Specific Setup**
+- **Browser Support**: Chrome/Chromium recommended for full PWA support
+- **Audio Server**: Works with PulseAudio, PipeWire, or ALSA
+- **Microphone Permission**: Browser will request microphone access on first use
+- **Audio Quality**: Uses 48kHz sample rate with 20ms latency
+- **Device Selection**: Full support for USB audio interfaces and Bluetooth devices
+
+**Audio Configuration**
+```bash
+# Check available audio devices
+$ aplay -l                    # List ALSA playback devices
+$ arecord -l                  # List ALSA capture devices
+
+# PulseAudio configuration
+$ pactl list sinks short      # List output devices
+$ pactl list sources short    # List input devices
+$ pactl set-default-sink <sink-name>    # Set default output
+$ pactl set-default-source <source-name> # Set default input
+
+# Reduce audio latency (optional)
+$ pactl set-sink-latency-msec <sink> 20
+
+# PipeWire configuration (if using PipeWire)
+$ pw-cli list-objects Node    # List audio nodes
+$ wpctl status                # Show audio status
+```
+
+**Bluetooth Audio Setup**
+```bash
+# Install Bluetooth support
+$ sudo apt install bluez pulseaudio-module-bluetooth
+
+# Connect Bluetooth device
+$ bluetoothctl
+[bluetooth]# power on
+[bluetooth]# agent on
+[bluetooth]# scan on
+[bluetooth]# pair <MAC_ADDRESS>
+[bluetooth]# trust <MAC_ADDRESS>
+[bluetooth]# connect <MAC_ADDRESS>
+[bluetooth]# exit
+
+# Verify Bluetooth audio device
+$ pactl list sinks | grep -i bluetooth
+```
+
+**Common Linux Audio Issues**
+- **No sound**: Check `pavucontrol` (PulseAudio Volume Control) for proper routing
+- **High latency**: Adjust PulseAudio latency settings
+- **Crackling audio**: Increase buffer size in `/etc/pulse/daemon.conf`
+- **Permission denied**: Add user to `audio` group: `sudo usermod -aG audio $USER`
+
+#### 🍓 Raspberry Pi Installation
+
+**Installing as PWA**
+1. **Open Chromium** on your Raspberry Pi
+2. **Navigate** to the Vader Vocoder URL
+3. **Click Menu (⋮)** → "Install Vader Vocoder..."
+4. **Grant microphone permission** when prompted
+5. **Launch** from the application menu
+
+**Raspberry Pi-Specific Setup**
+- **Recommended**: Raspberry Pi 3B+ or newer for best performance
+- **Audio Interface**: USB audio interface strongly recommended over built-in audio
+- **Sample Rate**: Uses 44.1kHz with 30ms latency for stability
+- **CPU Usage**: Monitor with `htop` - reduce reverb/distortion if needed
+- **Cooling**: Ensure adequate cooling for sustained audio processing
+
+**Audio Configuration**
+```bash
+# Install required packages
+$ sudo apt update
+$ sudo apt install pulseaudio pavucontrol
+
+# For Bluetooth support
+$ sudo apt install bluez pulseaudio-module-bluetooth pi-bluetooth
+
+# Enable audio
+$ sudo raspi-config
+# Navigate to: System Options → Audio → Select audio output
+
+# Check audio devices
+$ aplay -l
+$ pactl list sinks short
+
+# Set USB audio as default (if using USB interface)
+$ pactl set-default-sink alsa_output.usb-<device-name>
+```
+
+**Optimize for Raspberry Pi**
+```bash
+# Edit /boot/config.txt for better audio
+$ sudo nano /boot/config.txt
+
+# Add or modify these lines:
+dtparam=audio=on
+audio_pwm_mode=2              # Better audio quality
+disable_audio_dither=1        # Reduce noise
+
+# For USB audio, add:
+dtoverlay=dwc2
+
+# Reboot after changes
+$ sudo reboot
+```
+
+**Performance Tips for Raspberry Pi**
+- **Use USB Audio**: Built-in audio has limited quality
+- **Reduce Effects**: Lower reverb and distortion settings if CPU usage is high
+- **Close Other Apps**: Free up CPU resources for audio processing
+- **Use Lite OS**: Raspberry Pi OS Lite uses less resources
+- **Overclock Safely**: Consider mild overclocking for Pi 3/4 (with cooling)
+- **Power Supply**: Use official power supply to prevent audio glitches
+
+**Recommended USB Audio Interfaces for Pi**
+- **Budget**: Sabrent USB External Stereo Sound Adapter
+- **Mid-range**: Behringer UCA202 U-Control
+- **Quality**: Focusrite Scarlett Solo (requires powered USB hub)
+- **Pro**: Steinberg UR22C (requires powered USB hub)
+
 ## 🔄 Getting Updates from GitHub
 
 ### **How PWA Updates Work**
@@ -173,10 +316,176 @@ When you install the PWA on your device, it creates a cached version. GitHub upd
 ## Technical Details
 
 ### Audio Processing Chain
+
+```mermaid
+graph LR
+    A[🎤 Microphone Input] --> B[Input Gain Control]
+    B --> C[Highpass Filter]
+    C --> D[Bandpass Filter]
+    D --> E[Lowpass Filter]
+    E --> F[4-Band EQ<br/>250Hz, 600Hz<br/>1.2kHz, 2.5kHz]
+    F --> G[Robot AM<br/>Ring Modulation]
+    G --> H[Distortion<br/>Waveshaper]
+    H --> I[Vibrato<br/>LFO + Delay]
+    I --> J{Wet/Dry Mix}
+    J --> K[Reverb<br/>Convolution]
+    J --> L[Dry Signal]
+    K --> M[Mix Bus]
+    L --> M
+    M --> N[Noise Gate]
+    N --> O[Compressor]
+    O --> P[Master Gain]
+    P --> Q[Output Gain Control]
+    Q --> R[🔊 Audio Output]
+    
+    style A fill:#4CAF50
+    style R fill:#2196F3
+    style F fill:#FF9800
+    style G fill:#9C27B0
+    style H fill:#F44336
+    style N fill:#FFC107
 ```
-Microphone → Highpass → Bandpass → Lowpass → 4-Band EQ → 
-Robot AM → Distortion → Vibrato → Wet/Dry Mix → Reverb → 
-Noise Gate → Compressor → Master Gain → Output
+
+### System Architecture
+
+```mermaid
+graph TB
+    subgraph "User Interface"
+        A[HTML Interface] --> B[Device Selection]
+        A --> C[Effect Controls]
+        A --> D[Preset System]
+    end
+    
+    subgraph "Audio Engine"
+        E[Web Audio API] --> F[AudioContext]
+        F --> G[Audio Graph]
+        G --> H[Effect Nodes]
+        H --> I[Gain Nodes]
+    end
+    
+    subgraph "Device Management"
+        J[MediaDevices API] --> K[Device Enumeration]
+        K --> L[Permission Handling]
+        L --> M[Device Selection]
+    end
+    
+    subgraph "Platform Optimization"
+        N[Platform Detection] --> O{Device Type?}
+        O -->|Android| P[Android Optimizations]
+        O -->|iOS| Q[iOS Optimizations]
+        O -->|Linux| R[Linux Optimizations]
+        O -->|Raspberry Pi| S[Pi Optimizations]
+        O -->|Desktop| T[Desktop Settings]
+    end
+    
+    subgraph "PWA Features"
+        U[Service Worker] --> V[Offline Cache]
+        U --> W[Update Management]
+        X[Web Manifest] --> Y[Installation]
+    end
+    
+    B --> J
+    C --> E
+    D --> E
+    N --> E
+    U --> A
+    
+    style E fill:#4CAF50
+    style J fill:#2196F3
+    style N fill:#FF9800
+    style U fill:#9C27B0
+```
+
+### Application Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant UI
+    participant Permissions
+    participant AudioEngine
+    participant Devices
+    participant Platform
+    
+    User->>UI: Open App
+    UI->>Permissions: Request Microphone
+    Permissions-->>UI: Permission Granted
+    UI->>Devices: Enumerate Devices
+    Devices-->>UI: Device List
+    UI->>Platform: Detect Platform
+    Platform-->>UI: Platform Type
+    
+    User->>UI: Select Devices
+    User->>UI: Choose Preset
+    User->>UI: Click Start
+    
+    UI->>AudioEngine: Initialize AudioContext
+    AudioEngine->>Platform: Apply Optimizations
+    Platform-->>AudioEngine: Optimized Settings
+    AudioEngine->>Devices: Get Media Stream
+    Devices-->>AudioEngine: Audio Stream
+    AudioEngine->>AudioEngine: Build Audio Graph
+    AudioEngine->>AudioEngine: Connect Nodes
+    AudioEngine-->>UI: Ready
+    
+    loop Real-time Processing
+        AudioEngine->>AudioEngine: Process Audio
+        AudioEngine->>Devices: Output Audio
+    end
+    
+    User->>UI: Adjust Controls
+    UI->>AudioEngine: Update Parameters
+    
+    User->>UI: Click Stop
+    UI->>AudioEngine: Stop Processing
+    AudioEngine->>AudioEngine: Cleanup Resources
+    AudioEngine-->>UI: Stopped
+```
+
+### Platform-Specific Audio Routing
+
+```mermaid
+graph TD
+    A[Start Audio] --> B{Detect Platform}
+    
+    B -->|Android| C[Android Path]
+    C --> C1[Request Audio Focus]
+    C1 --> C2[20ms Latency]
+    C2 --> C3[16-bit Samples]
+    C3 --> C4[Disable Echo Cancellation]
+    C4 --> Z[Create Audio Graph]
+    
+    B -->|iOS| D[iOS Path]
+    D --> D1[44.1kHz Sample Rate]
+    D1 --> D2[System Latency]
+    D2 --> Z
+    
+    B -->|Raspberry Pi| E[Pi Path]
+    E --> E1[44.1kHz Sample Rate]
+    E1 --> E2[30ms Latency]
+    E2 --> E3[Check USB Audio]
+    E3 --> E4[Monitor CPU Usage]
+    E4 --> Z
+    
+    B -->|Linux| F[Linux Path]
+    F --> F1[48kHz Sample Rate]
+    F1 --> F2[20ms Latency]
+    F2 --> F3[Check PulseAudio]
+    F3 --> Z
+    
+    B -->|Desktop| G[Desktop Path]
+    G --> G1[48kHz Sample Rate]
+    G1 --> G2[Interactive Latency]
+    G2 --> Z
+    
+    Z --> H[Apply Effects]
+    H --> I[Output Audio]
+    
+    style C fill:#4CAF50
+    style D fill:#2196F3
+    style E fill:#FF9800
+    style F fill:#9C27B0
+    style G fill:#607D8B
 ```
 
 ### Key Technologies
@@ -190,6 +499,7 @@ Noise Gate → Compressor → Master Gain → Output
 - **Smart device handling** with automatic fallbacks
 - **Memory management** with proper cleanup on stop/restart
 - **Browser compatibility** layers for cross-platform support
+- **Platform-specific tuning** for Android, iOS, Linux, and Raspberry Pi
 
 ## File Structure
 
@@ -269,6 +579,115 @@ vader-vocoder-pwa/
 - **Refresh Needed**: Tap refresh (↻) button after connecting/disconnecting devices
 - **Limited Selection**: iOS may show fewer device options than Android
 - **Default Fallback**: If no devices show, "Default" will use the system's preferred audio
+
+### 🐧 Linux-Specific Troubleshooting
+
+#### Audio Server Issues
+- **PulseAudio Not Running**: Start with `pulseaudio --start` or `systemctl --user start pulseaudio`
+- **PipeWire Conflicts**: Ensure PipeWire-pulse is running if using PipeWire
+- **ALSA Direct Access**: May conflict with PulseAudio - use PulseAudio for best results
+- **Check Audio Server**: Run `pactl info` to verify PulseAudio is running
+
+#### Device Detection Problems
+- **No Devices Listed**: Run `pactl list sinks` and `pactl list sources` to verify devices
+- **Permission Denied**: Add user to audio group: `sudo usermod -aG audio $USER` (logout/login required)
+- **USB Audio Not Detected**: Check `dmesg | grep -i audio` for USB device recognition
+- **Bluetooth Not Working**: Ensure `pulseaudio-module-bluetooth` is installed
+
+#### Audio Quality Issues
+- **Crackling/Popping**: Increase buffer size in `/etc/pulse/daemon.conf`:
+  ```
+  default-fragments = 4
+  default-fragment-size-msec = 25
+  ```
+- **High Latency**: Reduce latency with `pactl set-sink-latency-msec <sink> 20`
+- **Choppy Audio**: Check CPU usage with `htop` - close unnecessary applications
+- **Distorted Sound**: Lower master gain and check PulseAudio volume levels
+
+#### Browser-Specific Issues
+- **Chrome/Chromium**: Best support for PWA and audio device selection
+- **Firefox**: Limited device selection support, but core functionality works
+- **Permissions**: Check `chrome://settings/content/microphone` for site permissions
+- **Clear Cache**: Clear browser cache if experiencing persistent issues
+
+#### Common Commands for Troubleshooting
+```bash
+# Check audio system status
+$ pactl info                          # PulseAudio info
+$ systemctl --user status pulseaudio  # PulseAudio service status
+
+# List all audio devices
+$ pactl list sinks                    # Output devices (detailed)
+$ pactl list sources                  # Input devices (detailed)
+$ aplay -l                            # ALSA playback devices
+$ arecord -l                          # ALSA capture devices
+
+# Test audio
+$ speaker-test -t wav -c 2            # Test speakers
+$ arecord -f cd -d 5 test.wav         # Test microphone (5 seconds)
+$ aplay test.wav                      # Play back recording
+
+# Reset PulseAudio
+$ pulseaudio -k                       # Kill PulseAudio
+$ pulseaudio --start                  # Restart PulseAudio
+
+# Check for errors
+$ journalctl --user -u pulseaudio     # PulseAudio logs
+$ dmesg | grep -i audio               # Kernel audio messages
+```
+
+### 🍓 Raspberry Pi-Specific Troubleshooting
+
+#### Performance Issues
+- **High CPU Usage**: Check with `htop` - reduce reverb and distortion settings
+- **Audio Stuttering**: Close other applications to free CPU resources
+- **Overheating**: Ensure adequate cooling - add heatsinks or fan
+- **Slow Response**: Use Raspberry Pi 3B+ or newer for best performance
+- **Memory Issues**: Close Chromium tabs and other applications
+
+#### Audio Hardware Problems
+- **Built-in Audio Poor Quality**: Use USB audio interface instead
+- **No Sound from USB**: Check `aplay -l` to verify USB device is detected
+- **USB Device Not Recognized**: Try different USB port or powered USB hub
+- **Audio Crackling**: Use official power supply - insufficient power causes audio issues
+- **Headphone Jack Issues**: Built-in jack has limited quality - USB audio recommended
+
+#### Configuration Issues
+- **Wrong Audio Output**: Run `sudo raspi-config` → System Options → Audio
+- **USB Audio Not Default**: Set with `pactl set-default-sink alsa_output.usb-<device>`
+- **Bluetooth Pairing Fails**: Ensure `pi-bluetooth` package is installed
+- **Permission Denied**: Add user to audio group: `sudo usermod -aG audio pi`
+
+#### Optimization Tips
+```bash
+# Check current audio configuration
+$ cat /boot/config.txt | grep audio
+
+# Monitor CPU usage while running
+$ htop
+
+# Check temperature (should stay below 80°C)
+$ vcgencmd measure_temp
+
+# Check power supply voltage (should be ~5V)
+$ vcgencmd get_throttled
+# 0x0 = good, anything else = power issues
+
+# Disable unnecessary services
+$ sudo systemctl disable bluetooth    # If not using Bluetooth
+$ sudo systemctl disable cups         # If not using printer
+
+# Optimize Chromium for performance
+# Launch with: chromium-browser --disable-gpu --disable-software-rasterizer
+```
+
+#### Recommended Raspberry Pi Setup
+- **Model**: Raspberry Pi 4 (4GB+ RAM) or Pi 3B+ minimum
+- **OS**: Raspberry Pi OS (32-bit or 64-bit)
+- **Audio**: USB audio interface (not built-in jack)
+- **Cooling**: Heatsinks + fan for sustained use
+- **Power**: Official Raspberry Pi power supply (5V 3A for Pi 4)
+- **Browser**: Chromium (pre-installed on Raspberry Pi OS)
 
 ## Development
 

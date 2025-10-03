@@ -364,17 +364,27 @@ function testAudio() {
     log("🔊 Test tone played");
 }
 
-// Diagnostic function for mobile audio routing and Bluetooth troubleshooting
+// Diagnostic function for audio routing and device troubleshooting
 function diagnoseBluetooth() {
-  log("🔍 Mobile Audio & Bluetooth Diagnostics:");
+  log("🔍 Audio Device & System Diagnostics:");
   
   // Device and browser info
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const isMobile = isAndroid || isIOS;
+  const isLinux = /Linux/i.test(navigator.userAgent) && !isAndroid;
+  const isRaspberryPi = /armv|aarch64/i.test(navigator.userAgent) || 
+                        (isLinux && (/arm/i.test(navigator.platform) || /arm/i.test(navigator.userAgent)));
   
-  log(`Device: ${isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop'}`);
-  log(`Browser: ${navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge)\/[\d.]+/)?.[0] || 'Unknown'}`);
+  let deviceType = 'Desktop';
+  if (isRaspberryPi) deviceType = '🍓 Raspberry Pi / ARM Linux';
+  else if (isLinux) deviceType = '🐧 Linux';
+  else if (isAndroid) deviceType = '📱 Android';
+  else if (isIOS) deviceType = '📱 iOS';
+  
+  log(`Device: ${deviceType}`);
+  log(`Platform: ${navigator.platform}`);
+  log(`Browser: ${navigator.userAgent.match(/(Chrome|Firefox|Safari|Edge|Chromium)\/[\d.]+/)?.[0] || 'Unknown'}`);
   log(`HTTPS: ${location.protocol === 'https:'}`);
   log(`Mobile: ${isMobile}`);
   
@@ -409,7 +419,7 @@ function diagnoseBluetooth() {
       log(`  ${index + 1}. ${hasLabel ? device.label : '[No Label - Permission Required]'} (${deviceType})`);
     });
     
-    // Mobile-specific guidance
+    // Platform-specific guidance
     if (isMobile && outputs.length <= 1) {
       log("⚠️ Expected mobile audio outputs not found:");
       log("   📞 Earpiece/Receiver (for calls)");
@@ -425,6 +435,33 @@ function diagnoseBluetooth() {
       if (isAndroid) {
         log("   5. Android: Check 'Phone' app permissions");
         log("   6. Android: Disable 'Absolute Volume' in Developer Options");
+      }
+    }
+    
+    // Linux/Raspberry Pi specific guidance
+    if ((isLinux || isRaspberryPi) && outputs.length <= 1) {
+      log("");
+      log("🐧 Linux/Raspberry Pi Audio Setup:");
+      log("💡 Check ALSA devices:");
+      log("   $ aplay -l");
+      log("💡 Check PulseAudio/PipeWire sinks:");
+      log("   $ pactl list sinks short");
+      log("💡 Set default audio device:");
+      log("   $ pactl set-default-sink <sink-name>");
+      log("💡 For Bluetooth devices:");
+      log("   $ bluetoothctl");
+      log("   [bluetooth]# pair <MAC>");
+      log("   [bluetooth]# trust <MAC>");
+      log("   [bluetooth]# connect <MAC>");
+      
+      if (isRaspberryPi) {
+        log("");
+        log("🍓 Raspberry Pi Specific:");
+        log("   • Edit /boot/config.txt for audio settings");
+        log("   • Use USB audio interface for better quality");
+        log("   • Install: sudo apt install pulseaudio pavucontrol");
+        log("   • For Bluetooth: sudo apt install bluez pulseaudio-module-bluetooth");
+        log("   • Reduce CPU load: Lower reverb/distortion settings");
       }
     }
     
@@ -606,37 +643,74 @@ async function requestSpeakerPermission() {
   }
 }
 
-// Android audio focus and routing optimization
+// Platform-specific audio optimizations
 function optimizeAndroidAudio() {
-  if (!/Android/i.test(navigator.userAgent)) return;
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isLinux = /Linux/i.test(navigator.userAgent) && !isAndroid;
+  const isRaspberryPi = /armv|aarch64/i.test(navigator.userAgent) || 
+                        (isLinux && (/arm/i.test(navigator.platform) || /arm/i.test(navigator.userAgent)));
   
-  // Request audio focus for media playback
-  if ('requestAudioFocus' in navigator) {
-    try {
-      navigator.requestAudioFocus();
-      log("🎯 Android audio focus requested");
-    } catch (e) {
-      log("Audio focus request failed: " + e.message);
-    }
-  }
-  
-  // Optimize for Android Chrome
-  if (navigator.userAgent.includes('Chrome') && audioCtx) {
-    // Set up optimal buffer sizes for Android
-    try {
-      if (audioCtx.audioWorklet) {
-        // Use AudioWorklet for better performance on newer Android devices
-        log("📱 AudioWorklet available - optimizing for Android");
+  // Android optimizations
+  if (isAndroid) {
+    // Request audio focus for media playback
+    if ('requestAudioFocus' in navigator) {
+      try {
+        navigator.requestAudioFocus();
+        log("🎯 Android audio focus requested");
+      } catch (e) {
+        log("Audio focus request failed: " + e.message);
       }
-    } catch (e) {
-      log("AudioWorklet optimization failed: " + e.message);
+    }
+    
+    // Optimize for Android Chrome
+    if (navigator.userAgent.includes('Chrome') && audioCtx) {
+      try {
+        if (audioCtx.audioWorklet) {
+          log("📱 AudioWorklet available - optimizing for Android");
+        }
+      } catch (e) {
+        log("AudioWorklet optimization failed: " + e.message);
+      }
     }
   }
   
-  // Handle Android audio routing changes
+  // Linux/Raspberry Pi optimizations
+  if (isLinux || isRaspberryPi) {
+    if (audioCtx) {
+      const baseLatency = audioCtx.baseLatency || 0;
+      const outputLatency = audioCtx.outputLatency || 0;
+      const sampleRate = audioCtx.sampleRate;
+      
+      if (isRaspberryPi) {
+        log("🍓 Raspberry Pi audio optimizations applied");
+        log(`   Sample rate: ${sampleRate}Hz`);
+        log(`   Latency: ${(baseLatency * 1000).toFixed(1)}ms base, ${(outputLatency * 1000).toFixed(1)}ms output`);
+        
+        // Performance tips for Raspberry Pi
+        if (baseLatency > 0.05) {
+          log("⚠️ High latency detected - may cause audio delay");
+          log("💡 Reduce latency: pactl set-sink-latency-msec <sink> 20");
+        }
+        
+        // Check for USB audio
+        log("💡 For best results: Use USB audio interface");
+      } else {
+        log("🐧 Linux audio optimizations applied");
+        log(`   Sample rate: ${sampleRate}Hz, Latency: ${(baseLatency * 1000).toFixed(1)}ms`);
+      }
+      
+      // Check for PulseAudio/PipeWire
+      if (baseLatency > 0.1) {
+        log("⚠️ Very high latency - check audio server configuration");
+      }
+    }
+  }
+  
+  // Handle device changes for all platforms
   if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
     navigator.mediaDevices.addEventListener('devicechange', () => {
-      log("📱 Android audio devices changed - updating routing");
+      const platform = isRaspberryPi ? '🍓 Raspberry Pi' : isLinux ? '🐧 Linux' : isAndroid ? '📱 Android' : 'System';
+      log(`${platform} audio devices changed - updating routing`);
       setTimeout(() => {
         populateDevices();
         checkFeedbackRisk();
@@ -781,14 +855,17 @@ async function start(){
       log("AudioContext resumed (browser autoplay policy)");
     }
     
-    // Apply Android-specific optimizations
+    // Apply platform-specific optimizations (Android, Linux, Raspberry Pi)
     optimizeAndroidAudio();
 
-    // mic stream with error handling and mobile optimization
+    // mic stream with error handling and platform optimization
     const devId = micSelect.value || undefined;
     const isAndroid = /Android/i.test(navigator.userAgent);
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     const isMobile = isAndroid || isIOS;
+    const isLinux = /Linux/i.test(navigator.userAgent) && !isAndroid;
+    const isRaspberryPi = /armv|aarch64/i.test(navigator.userAgent) || 
+                          (isLinux && (/arm/i.test(navigator.platform) || /arm/i.test(navigator.userAgent)));
     
     // Mobile-optimized audio constraints
     const baseConstraints = {
@@ -818,13 +895,24 @@ async function start(){
         baseConstraints.googTypingNoiseDetection = false;
       }
       
-      log("Android device detected - using optimized constraints for audio routing");
+      log("📱 Android device detected - using optimized constraints for audio routing");
     } else if (isIOS) {
       // iOS works best with 44.1kHz or let the system choose
       baseConstraints.sampleRate = 44100;
-      log("iOS device detected - using 44.1kHz sample rate");
+      log("📱 iOS device detected - using 44.1kHz sample rate");
+    } else if (isRaspberryPi) {
+      // Raspberry Pi optimizations - balance quality and performance
+      baseConstraints.sampleRate = 44100; // Standard rate for Pi
+      baseConstraints.latency = 0.03; // 30ms for better stability on Pi
+      log("🍓 Raspberry Pi detected - using balanced audio constraints");
+      log("💡 For lower latency: Use USB audio interface");
+    } else if (isLinux) {
+      // Linux desktop - can handle higher quality
+      baseConstraints.sampleRate = 48000;
+      baseConstraints.latency = 0.02;
+      log("🐧 Linux detected - using high-quality audio constraints");
     } else if (!isMobile) {
-      // Desktop browsers can handle higher sample rates
+      // Other desktop browsers
       baseConstraints.sampleRate = 48000;
     }
     
