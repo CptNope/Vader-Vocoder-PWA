@@ -19,6 +19,20 @@ let gateThreshold = 0.04;
 let gateGain;
 let robotOsc, robotGain, robotMixGain;
 
+// Graphic EQ nodes (10-band)
+let geqNodes = {};
+let eqCanvas, eqCtx;
+let eqAnimationFrame;
+
+// Mixer nodes
+let mixerInputGain, mixerEffectsGain, mixerBreathGain, mixerMasterGain;
+let mixerChannelStates = {
+  input: { muted: false, solo: false },
+  effects: { muted: false, solo: false },
+  breath: { muted: false, solo: false }
+};
+let meteringInterval;
+
 // New audio control nodes
 let inputGain, outputGain;
 let inputMuted = false;
@@ -55,6 +69,36 @@ const micTypeEl = document.getElementById('micType');
 const outTypeEl = document.getElementById('outType');
 const requestSpeakerPermissionBtn = document.getElementById('requestSpeakerPermission');
 const diagnoseBluetoothBtn = document.getElementById('diagnoseBluetooth');
+
+// Graphic EQ elements
+const geq31Ctl = linkRange('geq31','geq31Out');
+const geq62Ctl = linkRange('geq62','geq62Out');
+const geq125Ctl = linkRange('geq125','geq125Out');
+const geq250Ctl = linkRange('geq250','geq250Out');
+const geq500Ctl = linkRange('geq500','geq500Out');
+const geq1kCtl = linkRange('geq1k','geq1kOut');
+const geq2kCtl = linkRange('geq2k','geq2kOut');
+const geq4kCtl = linkRange('geq4k','geq4kOut');
+const geq8kCtl = linkRange('geq8k','geq8kOut');
+const geq16kCtl = linkRange('geq16k','geq16kOut');
+const eqResetBtn = document.getElementById('eqReset');
+const eqFlatBtn = document.getElementById('eqFlat');
+const eqVocalBtn = document.getElementById('eqVocal');
+const eqBassBtn = document.getElementById('eqBass');
+
+// Mixer elements
+const mixerInputCtl = linkRange('mixerInput','mixerInputOut');
+const mixerEffectsCtl = linkRange('mixerEffects','mixerEffectsOut');
+const mixerBreathCtl = linkRange('mixerBreath','mixerBreathOut');
+const mixerMasterCtl = linkRange('mixerMaster','mixerMasterOut');
+const mixerInputMuteBtn = document.getElementById('mixerInputMute');
+const mixerInputSoloBtn = document.getElementById('mixerInputSolo');
+const mixerEffectsMuteBtn = document.getElementById('mixerEffectsMute');
+const mixerEffectsSoloBtn = document.getElementById('mixerEffectsSolo');
+const mixerBreathMuteBtn = document.getElementById('mixerBreathMute');
+const mixerBreathSoloBtn = document.getElementById('mixerBreathSolo');
+const mixerResetBtn = document.getElementById('mixerReset');
+const mixerMeteringChk = document.getElementById('mixerMetering');
 
 // Ranges / selects
 const gainCtl = linkRange('gain','gainOut');
@@ -361,7 +405,198 @@ function testAudio() {
   
   testOsc.start();
   testOsc.stop(audioCtx.currentTime + 0.2); // 200ms test tone
-    log("🔊 Test tone played");
+  log("🔊 Test tone played");
+}
+
+// Graphic EQ Functions
+function initGraphicEQ() {
+  eqCanvas = document.getElementById('eqCanvas');
+  eqCtx = eqCanvas.getContext('2d');
+  
+  // Start EQ visualization
+  drawEQVisualization();
+}
+
+function drawEQVisualization() {
+  if (!eqCtx || !analyser) return;
+  
+  const width = eqCanvas.width;
+  const height = eqCanvas.height;
+  
+  // Clear canvas
+  eqCtx.fillStyle = '#0d0d0d';
+  eqCtx.fillRect(0, 0, width, height);
+  
+  // Draw frequency response if audio is running
+  if (analyser) {
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteFrequencyData(dataArray);
+    
+    // Draw spectrum
+    eqCtx.lineWidth = 2;
+    eqCtx.strokeStyle = '#4CAF50';
+    eqCtx.beginPath();
+    
+    const sliceWidth = width / bufferLength;
+    let x = 0;
+    
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 255.0;
+      const y = height - (v * height);
+      
+      if (i === 0) {
+        eqCtx.moveTo(x, y);
+      } else {
+        eqCtx.lineTo(x, y);
+      }
+      
+      x += sliceWidth;
+    }
+    
+    eqCtx.stroke();
+  }
+  
+  // Draw EQ band markers
+  const frequencies = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+  eqCtx.strokeStyle = '#333';
+  eqCtx.lineWidth = 1;
+  
+  frequencies.forEach((freq, index) => {
+    const x = (index + 0.5) * (width / frequencies.length);
+    eqCtx.beginPath();
+    eqCtx.moveTo(x, 0);
+    eqCtx.lineTo(x, height);
+    eqCtx.stroke();
+  });
+  
+  eqAnimationFrame = requestAnimationFrame(drawEQVisualization);
+}
+
+function applyGraphicEQ(preset) {
+  const presets = {
+    flat: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    vocal: [0, 0, 2, 4, 3, 2, 0, -2, -3, -4],
+    bass: [8, 6, 4, 2, 0, 0, 0, 0, 0, 0]
+  };
+  
+  const values = presets[preset] || presets.flat;
+  const controls = [geq31Ctl, geq62Ctl, geq125Ctl, geq250Ctl, geq500Ctl, 
+                    geq1kCtl, geq2kCtl, geq4kCtl, geq8kCtl, geq16kCtl];
+  
+  controls.forEach((ctl, index) => {
+    ctl.value = values[index];
+    ctl.dispatchEvent(new Event('input'));
+  });
+  
+  log(`🎚️ Graphic EQ preset applied: ${preset}`);
+}
+
+// Mixer Functions
+function updateMixerMetering() {
+  if (!mixerMeteringChk.checked || !analyser) return;
+  
+  // Get audio levels
+  analyser.getByteTimeDomainData(dataArray);
+  let sum = 0;
+  for (let i = 0; i < dataArray.length; i++) {
+    const v = (dataArray[i] - 128) / 128;
+    sum += v * v;
+  }
+  const rms = Math.sqrt(sum / dataArray.length);
+  const level = Math.min(100, rms * 200); // Convert to percentage
+  
+  // Update meter bars
+  const inputMeterBar = document.querySelector('#inputMeter .meter-bar');
+  const effectsMeterBar = document.querySelector('#effectsMeter .meter-bar');
+  const masterMeterBar = document.querySelector('#masterMeter .meter-bar');
+  
+  if (inputMeterBar) inputMeterBar.style.height = level + '%';
+  if (effectsMeterBar) effectsMeterBar.style.height = (level * 0.8) + '%';
+  if (masterMeterBar) masterMeterBar.style.height = level + '%';
+}
+
+function toggleMixerChannel(channel, type) {
+  const state = mixerChannelStates[channel];
+  
+  if (type === 'mute') {
+    state.muted = !state.muted;
+    const btn = document.getElementById(`mixer${channel.charAt(0).toUpperCase() + channel.slice(1)}Mute`);
+    btn.classList.toggle('active', state.muted);
+    
+    // Apply mute
+    if (channel === 'input' && mixerInputGain) {
+      mixerInputGain.gain.value = state.muted ? 0 : parseFloat(mixerInputCtl.value);
+    } else if (channel === 'effects' && mixerEffectsGain) {
+      mixerEffectsGain.gain.value = state.muted ? 0 : parseFloat(mixerEffectsCtl.value);
+    } else if (channel === 'breath' && mixerBreathGain) {
+      mixerBreathGain.gain.value = state.muted ? 0 : parseFloat(mixerBreathCtl.value);
+    }
+    
+    log(`🎛️ ${channel} ${state.muted ? 'muted' : 'unmuted'}`);
+  } else if (type === 'solo') {
+    state.solo = !state.solo;
+    const btn = document.getElementById(`mixer${channel.charAt(0).toUpperCase() + channel.slice(1)}Solo`);
+    btn.classList.toggle('active', state.solo);
+    
+    // Handle solo logic
+    const anySolo = Object.values(mixerChannelStates).some(s => s.solo);
+    
+    if (anySolo) {
+      // Mute all non-solo channels
+      Object.keys(mixerChannelStates).forEach(ch => {
+        if (!mixerChannelStates[ch].solo) {
+          if (ch === 'input' && mixerInputGain) mixerInputGain.gain.value = 0;
+          if (ch === 'effects' && mixerEffectsGain) mixerEffectsGain.gain.value = 0;
+          if (ch === 'breath' && mixerBreathGain) mixerBreathGain.gain.value = 0;
+        }
+      });
+    } else {
+      // Restore all channels
+      if (mixerInputGain && !mixerChannelStates.input.muted) {
+        mixerInputGain.gain.value = parseFloat(mixerInputCtl.value);
+      }
+      if (mixerEffectsGain && !mixerChannelStates.effects.muted) {
+        mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value);
+      }
+      if (mixerBreathGain && !mixerChannelStates.breath.muted) {
+        mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value);
+      }
+    }
+    
+    log(`🎛️ ${channel} solo ${state.solo ? 'enabled' : 'disabled'}`);
+  }
+}
+
+function resetMixer() {
+  mixerInputCtl.value = 1.0;
+  mixerEffectsCtl.value = 1.0;
+  mixerBreathCtl.value = 0.7;
+  mixerMasterCtl.value = 1.2;
+  
+  // Reset all states
+  Object.keys(mixerChannelStates).forEach(ch => {
+    mixerChannelStates[ch].muted = false;
+    mixerChannelStates[ch].solo = false;
+  });
+  
+  // Update UI
+  document.querySelectorAll('.mixer-mute, .mixer-solo').forEach(btn => {
+    btn.classList.remove('active');
+  });
+  
+  // Apply to audio nodes
+  if (mixerInputGain) mixerInputGain.gain.value = 1.0;
+  if (mixerEffectsGain) mixerEffectsGain.gain.value = 1.0;
+  if (mixerBreathGain) mixerBreathGain.gain.value = 0.7;
+  if (mixerMasterGain) mixerMasterGain.gain.value = 1.2;
+  
+  mixerInputCtl.dispatchEvent(new Event('input'));
+  mixerEffectsCtl.dispatchEvent(new Event('input'));
+  mixerBreathCtl.dispatchEvent(new Event('input'));
+  mixerMasterCtl.dispatchEvent(new Event('input'));
+  
+  log("🎛️ Mixer reset to defaults");
 }
 
 // Diagnostic function for audio routing and device troubleshooting
@@ -968,6 +1203,38 @@ async function start(){
     eq600.gain.value = parseFloat(eq600Ctl.value);
     eq1200.gain.value = parseFloat(eq1200Ctl.value);
     eq2500.gain.value = parseFloat(eq2500Ctl.value);
+    
+    // Graphic EQ (10-band)
+    geqNodes.geq31 = buildEQ(audioCtx, 31);
+    geqNodes.geq62 = buildEQ(audioCtx, 62);
+    geqNodes.geq125 = buildEQ(audioCtx, 125);
+    geqNodes.geq250 = buildEQ(audioCtx, 250);
+    geqNodes.geq500 = buildEQ(audioCtx, 500);
+    geqNodes.geq1k = buildEQ(audioCtx, 1000);
+    geqNodes.geq2k = buildEQ(audioCtx, 2000);
+    geqNodes.geq4k = buildEQ(audioCtx, 4000);
+    geqNodes.geq8k = buildEQ(audioCtx, 8000);
+    geqNodes.geq16k = buildEQ(audioCtx, 16000);
+    geqNodes.geq31.gain.value = parseFloat(geq31Ctl.value);
+    geqNodes.geq62.gain.value = parseFloat(geq62Ctl.value);
+    geqNodes.geq125.gain.value = parseFloat(geq125Ctl.value);
+    geqNodes.geq250.gain.value = parseFloat(geq250Ctl.value);
+    geqNodes.geq500.gain.value = parseFloat(geq500Ctl.value);
+    geqNodes.geq1k.gain.value = parseFloat(geq1kCtl.value);
+    geqNodes.geq2k.gain.value = parseFloat(geq2kCtl.value);
+    geqNodes.geq4k.gain.value = parseFloat(geq4kCtl.value);
+    geqNodes.geq8k.gain.value = parseFloat(geq8kCtl.value);
+    geqNodes.geq16k.gain.value = parseFloat(geq16kCtl.value);
+    
+    // Mixer gain nodes
+    mixerInputGain = audioCtx.createGain();
+    mixerEffectsGain = audioCtx.createGain();
+    mixerBreathGain = audioCtx.createGain();
+    mixerMasterGain = audioCtx.createGain();
+    mixerInputGain.gain.value = parseFloat(mixerInputCtl.value);
+    mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value);
+    mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value);
+    mixerMasterGain.gain.value = parseFloat(mixerMasterCtl.value);
 
     // distortion
     shaper = audioCtx.createWaveShaper();
@@ -1028,9 +1295,24 @@ async function start(){
     monitorEl.srcObject = outMediaStreamDest.stream;
 
     // Graph:
-    // src -> inputGain -> hp -> bp -> lp -> EQs -> (split) -> shaper -> delay -> (dry/wet+reverb) -> comp -> master -> outputGain -> out
-    srcNode.connect(inputGain);
-    inputGain.connect(hp);
+    // src -> mixerInput -> inputGain -> GraphicEQ -> hp -> bp -> lp -> EQs -> mixerEffects -> (split) -> shaper -> delay -> (dry/wet+reverb) -> comp -> master -> mixerMaster -> outputGain -> out
+    srcNode.connect(mixerInputGain);
+    mixerInputGain.connect(inputGain);
+    
+    // Chain graphic EQ nodes
+    inputGain.connect(geqNodes.geq31);
+    geqNodes.geq31.connect(geqNodes.geq62);
+    geqNodes.geq62.connect(geqNodes.geq125);
+    geqNodes.geq125.connect(geqNodes.geq250);
+    geqNodes.geq250.connect(geqNodes.geq500);
+    geqNodes.geq500.connect(geqNodes.geq1k);
+    geqNodes.geq1k.connect(geqNodes.geq2k);
+    geqNodes.geq2k.connect(geqNodes.geq4k);
+    geqNodes.geq4k.connect(geqNodes.geq8k);
+    geqNodes.geq8k.connect(geqNodes.geq16k);
+    
+    // Continue to filters
+    geqNodes.geq16k.connect(hp);
     hp.connect(bp);
     bp.connect(lp);
     lp.connect(eq250);
@@ -1082,7 +1364,8 @@ async function start(){
     gateGain.connect(comp);
 
     comp.connect(masterGain);
-    masterGain.connect(outputGain);
+    masterGain.connect(mixerMasterGain);
+    mixerMasterGain.connect(outputGain);
     outputGain.connect(outMediaStreamDest);
     outputGain.connect(analyser);
 
@@ -1126,6 +1409,13 @@ async function start(){
     if (speechDetector) clearInterval(speechDetector);
     speechDetector = setInterval(detectSpeech, 100);
     
+    // Start graphic EQ visualization
+    initGraphicEQ();
+    
+    // Start mixer metering
+    if (meteringInterval) clearInterval(meteringInterval);
+    meteringInterval = setInterval(updateMixerMetering, 50);
+    
     // Monitor stream health
     mediaStream.getTracks().forEach(track => {
       track.addEventListener('ended', () => {
@@ -1147,6 +1437,16 @@ function stop(){
     if (speechDetector) { 
       clearInterval(speechDetector); 
       speechDetector = null;
+    }
+    
+    if (meteringInterval) {
+      clearInterval(meteringInterval);
+      meteringInterval = null;
+    }
+    
+    if (eqAnimationFrame) {
+      cancelAnimationFrame(eqAnimationFrame);
+      eqAnimationFrame = null;
     }
     
     // Stop oscillators safely
@@ -1278,6 +1578,37 @@ autoFeedbackPreventionChk.addEventListener('change', ()=> {
   log("Auto feedback prevention: " + (autoFeedbackPreventionChk.checked ? "enabled" : "disabled"));
   checkFeedbackRisk();
 });
+
+// Graphic EQ event listeners
+geq31Ctl.addEventListener('input', ()=> geqNodes.geq31 && (geqNodes.geq31.gain.value = parseFloat(geq31Ctl.value)));
+geq62Ctl.addEventListener('input', ()=> geqNodes.geq62 && (geqNodes.geq62.gain.value = parseFloat(geq62Ctl.value)));
+geq125Ctl.addEventListener('input', ()=> geqNodes.geq125 && (geqNodes.geq125.gain.value = parseFloat(geq125Ctl.value)));
+geq250Ctl.addEventListener('input', ()=> geqNodes.geq250 && (geqNodes.geq250.gain.value = parseFloat(geq250Ctl.value)));
+geq500Ctl.addEventListener('input', ()=> geqNodes.geq500 && (geqNodes.geq500.gain.value = parseFloat(geq500Ctl.value)));
+geq1kCtl.addEventListener('input', ()=> geqNodes.geq1k && (geqNodes.geq1k.gain.value = parseFloat(geq1kCtl.value)));
+geq2kCtl.addEventListener('input', ()=> geqNodes.geq2k && (geqNodes.geq2k.gain.value = parseFloat(geq2kCtl.value)));
+geq4kCtl.addEventListener('input', ()=> geqNodes.geq4k && (geqNodes.geq4k.gain.value = parseFloat(geq4kCtl.value)));
+geq8kCtl.addEventListener('input', ()=> geqNodes.geq8k && (geqNodes.geq8k.gain.value = parseFloat(geq8kCtl.value)));
+geq16kCtl.addEventListener('input', ()=> geqNodes.geq16k && (geqNodes.geq16k.gain.value = parseFloat(geq16kCtl.value)));
+
+eqResetBtn.addEventListener('click', ()=> applyGraphicEQ('flat'));
+eqFlatBtn.addEventListener('click', ()=> applyGraphicEQ('flat'));
+eqVocalBtn.addEventListener('click', ()=> applyGraphicEQ('vocal'));
+eqBassBtn.addEventListener('click', ()=> applyGraphicEQ('bass'));
+
+// Mixer event listeners
+mixerInputCtl.addEventListener('input', ()=> mixerInputGain && !mixerChannelStates.input.muted && (mixerInputGain.gain.value = parseFloat(mixerInputCtl.value)));
+mixerEffectsCtl.addEventListener('input', ()=> mixerEffectsGain && !mixerChannelStates.effects.muted && (mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value)));
+mixerBreathCtl.addEventListener('input', ()=> mixerBreathGain && !mixerChannelStates.breath.muted && (mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value)));
+mixerMasterCtl.addEventListener('input', ()=> mixerMasterGain && (mixerMasterGain.gain.value = parseFloat(mixerMasterCtl.value)));
+
+mixerInputMuteBtn.addEventListener('click', ()=> toggleMixerChannel('input', 'mute'));
+mixerInputSoloBtn.addEventListener('click', ()=> toggleMixerChannel('input', 'solo'));
+mixerEffectsMuteBtn.addEventListener('click', ()=> toggleMixerChannel('effects', 'mute'));
+mixerEffectsSoloBtn.addEventListener('click', ()=> toggleMixerChannel('effects', 'solo'));
+mixerBreathMuteBtn.addEventListener('click', ()=> toggleMixerChannel('breath', 'mute'));
+mixerBreathSoloBtn.addEventListener('click', ()=> toggleMixerChannel('breath', 'solo'));
+mixerResetBtn.addEventListener('click', resetMixer);
 
 async function ensurePermissions(){
   try {

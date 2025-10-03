@@ -15,6 +15,8 @@ A Progressive Web App that transforms your voice into a Darth Vader-like effect 
 - **Device type detection** with color-coded indicators (wired, wireless, Bluetooth, built-in)
 
 ### 🎛️ Advanced Audio Controls
+- **10-Band Graphic EQ** - Precise frequency control (31Hz-16kHz) with visual spectrum analyzer
+- **Software Mixer** - 4-channel mixer with faders, mute, solo, and real-time level metering
 - **Master Gain** - Overall volume control
 - **Wet/Dry Mix** - Balance between processed and original audio
 - **Multi-band EQ** - 4-band parametric equalizer (250Hz, 600Hz, 1.2kHz, 2.5kHz)
@@ -307,11 +309,51 @@ When you install the PWA on your device, it creates a cached version. GitHub upd
 - **Effect Mixing**: Balance wet/dry signals for subtle or dramatic effects
 - **Breathing Control**: Configure automatic breathing between speech
 
+### Using the Graphic EQ
+The 10-band graphic equalizer provides precise frequency control:
+- **31Hz-125Hz** - Sub-bass and bass frequencies (add depth and rumble)
+- **250Hz-500Hz** - Low-midrange (body and warmth)
+- **1kHz-2kHz** - Midrange (vocal clarity and presence)
+- **4kHz-8kHz** - Upper frequencies (brightness and articulation)
+- **16kHz** - Air and sparkle
+
+**EQ Presets:**
+- **Flat** - All bands at 0dB (neutral)
+- **Vocal Boost** - Enhanced midrange for clearer voice
+- **Bass Boost** - Increased low frequencies for deeper sound
+- **Reset** - Return all bands to 0dB
+
+**Visual Spectrum Analyzer** shows real-time frequency content with color-coded bars.
+
+### Using the Software Mixer
+The 4-channel mixer provides professional mixing capabilities:
+
+**Channels:**
+- **🎤 Input** - Raw microphone signal level
+- **🎸 Effects** - Processed effects chain level
+- **💨 Breath** - Breathing sound effects level
+- **🔊 Master** - Final output level
+
+**Controls:**
+- **Faders** - Adjust channel levels from 0-200%
+- **M (Mute)** - Silence individual channels
+- **S (Solo)** - Listen to one channel exclusively
+- **Level Meters** - Real-time visual feedback (green→yellow→red)
+
+**Workflow Tips:**
+1. Set input fader to capture good signal level
+2. Balance effects vs dry signal
+3. Adjust breath volume to taste
+4. Use master fader for final output level
+5. Use solo to isolate and fine-tune individual channels
+
 ### Tips for Best Results
 - **Use a headset** or helmet microphone to prevent feedback
 - **Bluetooth speakers** work great for output (pair at OS level first)
 - **Close microphone placement** improves the effect quality
 - **Adjust noise gate** to match your speaking volume
+- **Use graphic EQ** to shape your voice before effects
+- **Monitor levels** on mixer meters to avoid clipping
 
 ## Technical Details
 
@@ -319,31 +361,105 @@ When you install the PWA on your device, it creates a cached version. GitHub upd
 
 ```mermaid
 graph LR
-    A[🎤 Microphone Input] --> B[Input Gain Control]
-    B --> C[Highpass Filter]
-    C --> D[Bandpass Filter]
-    D --> E[Lowpass Filter]
-    E --> F[4-Band EQ<br/>250Hz, 600Hz<br/>1.2kHz, 2.5kHz]
-    F --> G[Robot AM<br/>Ring Modulation]
-    G --> H[Distortion<br/>Waveshaper]
-    H --> I[Vibrato<br/>LFO + Delay]
-    I --> J{Wet/Dry Mix}
-    J --> K[Reverb<br/>Convolution]
-    J --> L[Dry Signal]
-    K --> M[Mix Bus]
-    L --> M
-    M --> N[Noise Gate]
-    N --> O[Compressor]
-    O --> P[Master Gain]
-    P --> Q[Output Gain Control]
-    Q --> R[🔊 Audio Output]
+    A[🎤 Microphone Input] --> B[Mixer Input Channel]
+    B --> C[Input Gain Control]
+    C --> D[10-Band Graphic EQ<br/>31Hz-16kHz]
+    D --> E[Highpass Filter]
+    E --> F[Bandpass Filter]
+    F --> G[Lowpass Filter]
+    G --> H[4-Band Parametric EQ<br/>250Hz, 600Hz<br/>1.2kHz, 2.5kHz]
+    H --> I[Mixer Effects Channel]
+    I --> J[Robot AM<br/>Ring Modulation]
+    J --> K[Distortion<br/>Waveshaper]
+    K --> L[Vibrato<br/>LFO + Delay]
+    L --> M{Wet/Dry Mix}
+    M --> N[Reverb<br/>Convolution]
+    M --> O[Dry Signal]
+    N --> P[Mix Bus]
+    O --> P
+    P --> Q[Noise Gate]
+    Q --> R[Compressor]
+    R --> S[Master Gain]
+    S --> T[Mixer Master Channel]
+    T --> U[Output Gain Control]
+    U --> V[🔊 Audio Output]
     
     style A fill:#4CAF50
-    style R fill:#2196F3
-    style F fill:#FF9800
-    style G fill:#9C27B0
-    style H fill:#F44336
-    style N fill:#FFC107
+    style D fill:#2196F3
+    style H fill:#FF9800
+    style J fill:#9C27B0
+    style K fill:#F44336
+    style Q fill:#FFC107
+    style T fill:#00BCD4
+    style V fill:#2196F3
+```
+
+### Mixer Architecture
+
+```mermaid
+graph TB
+    subgraph "Software Mixer"
+        A[🎤 Input Channel] --> M[Mixer Bus]
+        B[🎸 Effects Channel] --> M
+        C[💨 Breath Channel] --> M
+        M --> D[🔊 Master Channel]
+    end
+    
+    subgraph "Channel Controls"
+        A1[Input Fader<br/>0-200%] --> A
+        A2[Mute Button] --> A
+        A3[Solo Button] --> A
+        A4[Level Meter] -.-> A
+        
+        B1[Effects Fader<br/>0-200%] --> B
+        B2[Mute Button] --> B
+        B3[Solo Button] --> B
+        B4[Level Meter] -.-> B
+        
+        C1[Breath Fader<br/>0-200%] --> C
+        C2[Mute Button] --> C
+        C3[Solo Button] --> C
+        C4[Level Meter] -.-> C
+        
+        D1[Master Fader<br/>0-200%] --> D
+        D2[Master Meter] -.-> D
+    end
+    
+    D --> E[Audio Output]
+    
+    style A fill:#4CAF50
+    style B fill:#FF9800
+    style C fill:#2196F3
+    style D fill:#F44336
+    style E fill:#9C27B0
+```
+
+### Graphic EQ Frequency Response
+
+```mermaid
+graph LR
+    A[Audio Input] --> B[31Hz<br/>Sub Bass]
+    B --> C[62Hz<br/>Bass]
+    C --> D[125Hz<br/>Low Bass]
+    D --> E[250Hz<br/>Bass/Low Mid]
+    E --> F[500Hz<br/>Low Midrange]
+    F --> G[1kHz<br/>Midrange]
+    G --> H[2kHz<br/>Upper Midrange]
+    H --> I[4kHz<br/>Presence]
+    I --> J[8kHz<br/>Brilliance]
+    J --> K[16kHz<br/>Air]
+    K --> L[Audio Output]
+    
+    style B fill:#8B0000
+    style C fill:#FF4500
+    style D fill:#FF8C00
+    style E fill:#FFD700
+    style F fill:#9ACD32
+    style G fill:#4CAF50
+    style H fill:#00BCD4
+    style I fill:#2196F3
+    style J fill:#9C27B0
+    style K fill:#E91E63
 ```
 
 ### System Architecture
@@ -354,46 +470,54 @@ graph TB
         A[HTML Interface] --> B[Device Selection]
         A --> C[Effect Controls]
         A --> D[Preset System]
+        A --> E[Graphic EQ]
+        A --> F[Software Mixer]
     end
     
     subgraph "Audio Engine"
-        E[Web Audio API] --> F[AudioContext]
-        F --> G[Audio Graph]
-        G --> H[Effect Nodes]
-        H --> I[Gain Nodes]
+        G[Web Audio API] --> H[AudioContext]
+        H --> I[Audio Graph]
+        I --> J[Effect Nodes]
+        J --> K[Gain Nodes]
+        J --> L[EQ Nodes]
+        J --> M[Mixer Nodes]
     end
     
     subgraph "Device Management"
-        J[MediaDevices API] --> K[Device Enumeration]
-        K --> L[Permission Handling]
-        L --> M[Device Selection]
+        N[MediaDevices API] --> O[Device Enumeration]
+        O --> P[Permission Handling]
+        P --> Q[Device Selection]
     end
     
     subgraph "Platform Optimization"
-        N[Platform Detection] --> O{Device Type?}
-        O -->|Android| P[Android Optimizations]
-        O -->|iOS| Q[iOS Optimizations]
-        O -->|Linux| R[Linux Optimizations]
-        O -->|Raspberry Pi| S[Pi Optimizations]
-        O -->|Desktop| T[Desktop Settings]
+        R[Platform Detection] --> S{Device Type?}
+        S -->|Android| T[Android Optimizations]
+        S -->|iOS| U[iOS Optimizations]
+        S -->|Linux| V[Linux Optimizations]
+        S -->|Raspberry Pi| W[Pi Optimizations]
+        S -->|Desktop| X[Desktop Settings]
     end
     
     subgraph "PWA Features"
-        U[Service Worker] --> V[Offline Cache]
-        U --> W[Update Management]
-        X[Web Manifest] --> Y[Installation]
+        Y[Service Worker] --> Z[Offline Cache]
+        Y --> AA[Update Management]
+        AB[Web Manifest] --> AC[Installation]
     end
     
-    B --> J
-    C --> E
-    D --> E
-    N --> E
-    U --> A
+    B --> N
+    C --> G
+    D --> G
+    E --> G
+    F --> G
+    R --> G
+    Y --> A
     
-    style E fill:#4CAF50
-    style J fill:#2196F3
-    style N fill:#FF9800
-    style U fill:#9C27B0
+    style G fill:#4CAF50
+    style N fill:#2196F3
+    style R fill:#FF9800
+    style Y fill:#9C27B0
+    style E fill:#00BCD4
+    style F fill:#E91E63
 ```
 
 ### Application Flow
@@ -691,7 +815,17 @@ $ sudo systemctl disable cups         # If not using printer
 
 ## Development
 
-### Recent Improvements (v2.0)
+### Recent Improvements (v4.0)
+- ✅ **10-Band Graphic EQ** - Professional frequency control with visual spectrum analyzer
+- ✅ **Software Mixer** - 4-channel mixer with faders, mute, solo, and real-time metering
+- ✅ **Separate Input/Output Volume Controls** - Independent volume sliders to prevent feedback
+- ✅ **Device Type Detection** - Color-coded indicators for wired, wireless, Bluetooth devices
+- ✅ **Auto Feedback Prevention** - Detects and prevents audio feedback loops
+- ✅ **Mute Controls** - Individual mute buttons for input and output
+- ✅ **Test Audio Function** - Test output without starting full vocoder
+- ✅ **Speaker Permission Button** - Explicit Bluetooth speaker access
+- ✅ **Diagnostic Tools** - Built-in audio troubleshooting for all platforms
+- ✅ **Linux & Raspberry Pi Support** - Optimized for PulseAudio, PipeWire, and ARM processors
 - ✅ **Fixed AudioContext state management** - Proper cleanup and recreation
 - ✅ **Enhanced error handling** - Graceful fallbacks for device failures
 - ✅ **Improved oscillator lifecycle** - Prevents "already started" errors

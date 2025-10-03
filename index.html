@@ -213,6 +213,142 @@
       </div>
     </section>
 
+    <!-- Graphic EQ Section -->
+    <section class="graphic-eq">
+      <h2>🎚️ Graphic EQ (10-Band)</h2>
+      
+      <div class="eq-visualizer">
+        <canvas id="eqCanvas" width="800" height="150"></canvas>
+      </div>
+      
+      <div class="eq-bands">
+        <div class="eq-band">
+          <input id="geq31" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="31Hz EQ Band">
+          <output id="geq31Out">0</output>
+          <label>31Hz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq62" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="62Hz EQ Band">
+          <output id="geq62Out">0</output>
+          <label>62Hz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq125" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="125Hz EQ Band">
+          <output id="geq125Out">0</output>
+          <label>125Hz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq250" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="250Hz EQ Band">
+          <output id="geq250Out">0</output>
+          <label>250Hz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq500" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="500Hz EQ Band">
+          <output id="geq500Out">0</output>
+          <label>500Hz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq1k" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="1kHz EQ Band">
+          <output id="geq1kOut">0</output>
+          <label>1kHz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq2k" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="2kHz EQ Band">
+          <output id="geq2kOut">0</output>
+          <label>2kHz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq4k" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="4kHz EQ Band">
+          <output id="geq4kOut">0</output>
+          <label>4kHz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq8k" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="8kHz EQ Band">
+          <output id="geq8kOut">0</output>
+          <label>8kHz</label>
+        </div>
+        <div class="eq-band">
+          <input id="geq16k" type="range" min="-12" max="12" step="0.5" value="0" orient="vertical" aria-label="16kHz EQ Band">
+          <output id="geq16kOut">0</output>
+          <label>16kHz</label>
+        </div>
+      </div>
+      
+      <div class="eq-controls">
+        <button id="eqReset" class="eq-btn">Reset</button>
+        <button id="eqFlat" class="eq-btn">Flat</button>
+        <button id="eqVocal" class="eq-btn">Vocal Boost</button>
+        <button id="eqBass" class="eq-btn">Bass Boost</button>
+      </div>
+    </section>
+
+    <!-- Software Mixer Section -->
+    <section class="mixer">
+      <h2>🎛️ Software Mixer</h2>
+      
+      <div class="mixer-container">
+        <div class="mixer-channel">
+          <h4>🎤 Input</h4>
+          <div class="fader-container">
+            <input id="mixerInput" type="range" min="0" max="2" step="0.01" value="1.0" orient="vertical" class="fader" aria-label="Input Channel Fader">
+            <div class="level-meter" id="inputMeter">
+              <div class="meter-bar"></div>
+            </div>
+          </div>
+          <output id="mixerInputOut">1.0</output>
+          <div class="mixer-buttons">
+            <button id="mixerInputMute" class="mixer-mute" title="Mute Input">M</button>
+            <button id="mixerInputSolo" class="mixer-solo" title="Solo Input">S</button>
+          </div>
+        </div>
+        
+        <div class="mixer-channel">
+          <h4>🎸 Effects</h4>
+          <div class="fader-container">
+            <input id="mixerEffects" type="range" min="0" max="2" step="0.01" value="1.0" orient="vertical" class="fader" aria-label="Effects Channel Fader">
+            <div class="level-meter" id="effectsMeter">
+              <div class="meter-bar"></div>
+            </div>
+          </div>
+          <output id="mixerEffectsOut">1.0</output>
+          <div class="mixer-buttons">
+            <button id="mixerEffectsMute" class="mixer-mute" title="Mute Effects">M</button>
+            <button id="mixerEffectsSolo" class="mixer-solo" title="Solo Effects">S</button>
+          </div>
+        </div>
+        
+        <div class="mixer-channel">
+          <h4>💨 Breath</h4>
+          <div class="fader-container">
+            <input id="mixerBreath" type="range" min="0" max="2" step="0.01" value="0.7" orient="vertical" class="fader" aria-label="Breath Channel Fader">
+            <div class="level-meter" id="breathMeter">
+              <div class="meter-bar"></div>
+            </div>
+          </div>
+          <output id="mixerBreathOut">0.7</output>
+          <div class="mixer-buttons">
+            <button id="mixerBreathMute" class="mixer-mute" title="Mute Breath">M</button>
+            <button id="mixerBreathSolo" class="mixer-solo" title="Solo Breath">S</button>
+          </div>
+        </div>
+        
+        <div class="mixer-channel mixer-master">
+          <h4>🔊 Master</h4>
+          <div class="fader-container">
+            <input id="mixerMaster" type="range" min="0" max="2" step="0.01" value="1.2" orient="vertical" class="fader" aria-label="Master Fader">
+            <div class="level-meter master-meter" id="masterMeter">
+              <div class="meter-bar"></div>
+            </div>
+          </div>
+          <output id="mixerMasterOut">1.2</output>
+        </div>
+      </div>
+      
+      <div class="mixer-controls">
+        <button id="mixerReset" class="mixer-btn">Reset Mixer</button>
+        <label><input type="checkbox" id="mixerMetering" checked> Show Metering</label>
+      </div>
+    </section>
 
     <section class="status">
       <h2>Status</h2>
