@@ -410,15 +410,23 @@ function testAudio() {
 
 // Graphic EQ Functions
 function initGraphicEQ() {
-  eqCanvas = document.getElementById('eqCanvas');
-  eqCtx = eqCanvas.getContext('2d');
+  if (!eqCanvas) {
+    eqCanvas = document.getElementById('eqCanvas');
+    eqCtx = eqCanvas.getContext('2d');
+  }
   
-  // Start EQ visualization
-  drawEQVisualization();
+  // Start EQ visualization if not already running
+  if (!eqAnimationFrame) {
+    drawEQVisualization();
+  }
 }
 
 function drawEQVisualization() {
-  if (!eqCtx || !analyser) return;
+  if (!eqCtx) {
+    eqCanvas = document.getElementById('eqCanvas');
+    if (!eqCanvas) return;
+    eqCtx = eqCanvas.getContext('2d');
+  }
   
   const width = eqCanvas.width;
   const height = eqCanvas.height;
@@ -455,6 +463,12 @@ function drawEQVisualization() {
     }
     
     eqCtx.stroke();
+  } else {
+    // Show "waiting for audio" message
+    eqCtx.fillStyle = '#666';
+    eqCtx.font = '14px system-ui';
+    eqCtx.textAlign = 'center';
+    eqCtx.fillText('Waiting for audio input...', width / 2, height / 2);
   }
   
   // Draw EQ band markers
@@ -610,12 +624,14 @@ function diagnoseBluetooth() {
   const isLinux = /Linux/i.test(navigator.userAgent) && !isAndroid;
   const isRaspberryPi = /armv|aarch64/i.test(navigator.userAgent) || 
                         (isLinux && (/arm/i.test(navigator.platform) || /arm/i.test(navigator.userAgent)));
+  const isWindows = /Win/i.test(navigator.platform);
   
   let deviceType = 'Desktop';
   if (isRaspberryPi) deviceType = '🍓 Raspberry Pi / ARM Linux';
   else if (isLinux) deviceType = '🐧 Linux';
   else if (isAndroid) deviceType = '📱 Android';
   else if (isIOS) deviceType = '📱 iOS';
+  else if (isWindows) deviceType = '🪟 Windows';
   
   log(`Device: ${deviceType}`);
   log(`Platform: ${navigator.platform}`);
@@ -670,6 +686,40 @@ function diagnoseBluetooth() {
       if (isAndroid) {
         log("   5. Android: Check 'Phone' app permissions");
         log("   6. Android: Disable 'Absolute Volume' in Developer Options");
+      }
+    }
+    
+    // Windows specific guidance
+    if (isWindows) {
+      log("");
+      log("🪟 Windows Audio Device Info:");
+      
+      // Check for headset with mic
+      const headsetInputs = inputs.filter(d => 
+        d.label.toLowerCase().includes('headset') || 
+        d.label.toLowerCase().includes('headphone')
+      );
+      
+      if (headsetInputs.length > 0) {
+        log("⚠️ Headset with microphone detected!");
+        log("💡 Windows Headset Issue:");
+        log("   Windows often locks headset mic + speakers together");
+        log("   This prevents using separate speakers");
+        log("");
+        log("🔧 Workarounds:");
+        log("   1. Use a standalone microphone (USB or 3.5mm)");
+        log("   2. Use Windows Sound Settings:");
+        log("      • Right-click speaker icon → Sound Settings");
+        log("      • Set different default playback device");
+        log("      • Keep headset mic as recording device");
+        log("   3. Use 'Communications' device separately:");
+        log("      • Control Panel → Sound → Communications tab");
+        log("   4. Try VoiceMeeter (virtual audio mixer)");
+        log("   5. Use VB-Audio Virtual Cable to route audio");
+        log("");
+        log("✅ Best Solution:");
+        log("   Use a separate USB microphone or desktop mic");
+        log("   This allows any speaker/headphone for output");
       }
     }
     
@@ -1677,6 +1727,10 @@ window.addEventListener('load', async ()=>{
       log("SW registration failed: " + e.message);
     }
   }
+  
+  // Start graphic EQ visualization immediately
+  initGraphicEQ();
+  
   ensurePermissions();
   loadSavedPreset(); // load user preset if exists
 });
