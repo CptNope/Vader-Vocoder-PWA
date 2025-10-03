@@ -44,11 +44,11 @@ A Progressive Web App that transforms your voice into a Darth Vader-like effect 
 - **Diagnostic Tools** - Built-in Bluetooth and audio troubleshooting
 
 ### 🌐 Cross-Platform Support
-- **📱 Android** - Optimized for Samsung, Pixel, and other Android devices
-- **🍎 iOS** - Full support for iPhone and iPad
-- **🐧 Linux** - PulseAudio and PipeWire compatibility
-- **🍓 Raspberry Pi** - Performance-tuned for ARM processors
-- **🪟 Windows** - Full desktop support
+- **📱 Android** - Optimized for Samsung, Pixel, and other Android devices with audio routing
+- **🍎 iOS** - Full support for iPhone and iPad with AirPods compatibility
+- **🐧 Linux** - PulseAudio and PipeWire compatibility with detailed troubleshooting
+- **🍓 Raspberry Pi** - Performance-tuned for ARM processors with USB audio support
+- **🪟 Windows** - Full desktop support with headset mic detection and workarounds
 - **🍎 macOS** - Native macOS compatibility
 
 ## File Structure
@@ -323,7 +323,15 @@ The 10-band graphic equalizer provides precise frequency control:
 - **Bass Boost** - Increased low frequencies for deeper sound
 - **Reset** - Return all bands to 0dB
 
-**Visual Spectrum Analyzer** shows real-time frequency content with color-coded bars.
+**Visual Spectrum Analyzer:**
+- **Always-On Display** - Starts immediately when you open the app
+- **Real-Time Visualization** - Shows frequency spectrum as you speak
+- **Setup Configuration** - See your microphone input before starting the vocoder
+- **Troubleshooting Tool** - Verify your mic is working and capturing audio
+- **Color-Coded Bars** - Visual feedback of audio levels across all frequencies
+- **Grid Markers** - Shows the 10 EQ band positions for reference
+
+**Pro Tip**: Use the spectrum analyzer to check if your microphone is working before clicking Start. You should see the bars moving when you speak!
 
 ### Using the Software Mixer
 The 4-channel mixer provides professional mixing capabilities:
@@ -566,6 +574,47 @@ sequenceDiagram
     AudioEngine-->>UI: Stopped
 ```
 
+### Diagnostic & Troubleshooting Flow
+
+```mermaid
+graph TD
+    A[User Clicks Diagnose BT] --> B[Detect Platform]
+    B --> C{Platform Type?}
+    
+    C -->|Windows| D[Check for Headsets]
+    D --> E{Headset with Mic?}
+    E -->|Yes| F[⚠️ Show Headset Warning]
+    F --> G[Provide Solutions:<br/>1. Use separate mic<br/>2. Sound settings<br/>3. VoiceMeeter]
+    E -->|No| H[Show Device List]
+    
+    C -->|Android| I[Check Bluetooth]
+    I --> J[Show Mobile Devices]
+    J --> K[Provide Android Tips]
+    
+    C -->|iOS| L[Check AirPods]
+    L --> M[Show iOS Devices]
+    M --> N[Provide iOS Tips]
+    
+    C -->|Linux| O[Check Audio Server]
+    O --> P[Show ALSA/PulseAudio]
+    P --> Q[Provide Terminal Commands]
+    
+    C -->|Raspberry Pi| R[Check USB Audio]
+    R --> S[Show Pi Devices]
+    S --> T[Provide Pi Optimization]
+    
+    G --> U[Display Results]
+    H --> U
+    K --> U
+    N --> U
+    Q --> U
+    T --> U
+    
+    style F fill:#FF9800
+    style G fill:#4CAF50
+    style U fill:#2196F3
+```
+
 ### Platform-Specific Audio Routing
 
 ```mermaid
@@ -760,6 +809,38 @@ $ journalctl --user -u pulseaudio     # PulseAudio logs
 $ dmesg | grep -i audio               # Kernel audio messages
 ```
 
+### 🪟 Windows-Specific Troubleshooting
+
+#### Headset with Microphone Issues
+**Problem**: When using a headset with a built-in microphone, Windows locks the microphone and headset speakers together, preventing you from using separate speakers for output.
+
+**Why This Happens**: Windows treats headsets as a single "communications device" and automatically routes both input and output through the same device.
+
+**Solutions**:
+
+1. **Use a Separate Microphone (Recommended)**
+   - Get a USB microphone or desktop microphone
+   - This completely solves the issue
+   - Allows any speaker/headphone for output
+   - Better microphone quality
+
+2. **Windows Sound Settings Workaround**
+   - Right-click speaker icon → Sound Settings
+   - Set different default playback device
+   - Keep headset mic as recording device
+   - May not work with all headsets
+
+3. **Communications Device Separation**
+   - Control Panel → Sound → Communications tab
+   - Set different devices for default and communications
+
+4. **Virtual Audio Routing**
+   - **VoiceMeeter** (free virtual audio mixer)
+   - **VB-Audio Virtual Cable** for audio routing
+   - More complex but gives full control
+
+**Detection**: The diagnostic tool (🔍 Diagnose BT button) automatically detects headsets with microphones and provides specific guidance.
+
 ### 🍓 Raspberry Pi-Specific Troubleshooting
 
 #### Performance Issues
@@ -815,16 +896,18 @@ $ sudo systemctl disable cups         # If not using printer
 
 ## Development
 
-### Recent Improvements (v4.0)
+### Recent Improvements (v4.3)
 - ✅ **10-Band Graphic EQ** - Professional frequency control with visual spectrum analyzer
+- ✅ **Always-On EQ Visualization** - Spectrum analyzer starts immediately for setup configuration
 - ✅ **Software Mixer** - 4-channel mixer with faders, mute, solo, and real-time metering
+- ✅ **Windows Headset Detection** - Automatic detection and troubleshooting for headset mic issues
 - ✅ **Separate Input/Output Volume Controls** - Independent volume sliders to prevent feedback
 - ✅ **Device Type Detection** - Color-coded indicators for wired, wireless, Bluetooth devices
 - ✅ **Auto Feedback Prevention** - Detects and prevents audio feedback loops
 - ✅ **Mute Controls** - Individual mute buttons for input and output
 - ✅ **Test Audio Function** - Test output without starting full vocoder
 - ✅ **Speaker Permission Button** - Explicit Bluetooth speaker access
-- ✅ **Diagnostic Tools** - Built-in audio troubleshooting for all platforms
+- ✅ **Diagnostic Tools** - Built-in audio troubleshooting for Windows, Linux, Raspberry Pi, Android, iOS
 - ✅ **Linux & Raspberry Pi Support** - Optimized for PulseAudio, PipeWire, and ARM processors
 - ✅ **Fixed AudioContext state management** - Proper cleanup and recreation
 - ✅ **Enhanced error handling** - Graceful fallbacks for device failures
