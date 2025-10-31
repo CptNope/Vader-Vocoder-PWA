@@ -192,20 +192,6 @@
           </div>
         </div>
         
-        <div class="mixer-channel">
-          <h4>💨 Breath</h4>
-          <div class="fader-container">
-            <input id="mixerBreath" type="range" min="0" max="2" step="0.01" value="0.7" orient="vertical" class="fader" aria-label="Breath Channel Fader">
-            <div class="level-meter" id="breathMeter">
-              <div class="meter-bar"></div>
-            </div>
-          </div>
-          <output id="mixerBreathOut">0.7</output>
-          <div class="mixer-buttons">
-            <button id="mixerBreathMute" class="mixer-mute" title="Mute Breath">M</button>
-            <button id="mixerBreathSolo" class="mixer-solo" title="Solo Breath">S</button>
-          </div>
-        </div>
         
         <div class="mixer-channel mixer-master">
           <h4>🔊 Master</h4>
@@ -319,11 +305,6 @@
           <output id="gateOut">0.04</output>
         </label>
 
-        <label>Breath Volume
-          <input id="breathVol" type="range" min="0" max="1" step="0.01" value="0.7">
-          <output id="breathVolOut">0.7</output>
-        </label>
-
         <label>Latency Hint
           <select id="latencyHint">
             <option value="interactive" selected>interactive (lowest)</option>
@@ -331,11 +312,6 @@
             <option value="playback">playback</option>
           </select>
         </label>
-      </div>
-
-      <div class="row">
-        <button id="breathBtn">Play Breathing</button>
-        <label><input type="checkbox" id="autobreath" checked> Auto between lines</label>
       </div>
 
       <div class="row">

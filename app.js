@@ -25,11 +25,10 @@ let eqCanvas, eqCtx;
 let eqAnimationFrame;
 
 // Mixer nodes
-let mixerInputGain, mixerEffectsGain, mixerBreathGain, mixerMasterGain;
+let mixerInputGain, mixerEffectsGain, mixerMasterGain;
 let mixerChannelStates = {
   input: { muted: false, solo: false },
-  effects: { muted: false, solo: false },
-  breath: { muted: false, solo: false }
+  effects: { muted: false, solo: false }
 };
 let meteringInterval;
 
@@ -40,12 +39,6 @@ let outputMuted = false;
 let lastInputVolume = 1.0;
 let lastOutputVolume = 0.8;
 
-// Breath
-let breathBuffer;
-let breathSource = null;
-let lastSpeaking = false;
-let speechDetector;
-let autobreath = true;
 
 // UI elements
 const logEl = document.getElementById('log');
@@ -89,14 +82,11 @@ const eqBassBtn = document.getElementById('eqBass');
 // Mixer elements
 const mixerInputCtl = linkRange('mixerInput','mixerInputOut');
 const mixerEffectsCtl = linkRange('mixerEffects','mixerEffectsOut');
-const mixerBreathCtl = linkRange('mixerBreath','mixerBreathOut');
 const mixerMasterCtl = linkRange('mixerMaster','mixerMasterOut');
 const mixerInputMuteBtn = document.getElementById('mixerInputMute');
 const mixerInputSoloBtn = document.getElementById('mixerInputSolo');
 const mixerEffectsMuteBtn = document.getElementById('mixerEffectsMute');
 const mixerEffectsSoloBtn = document.getElementById('mixerEffectsSolo');
-const mixerBreathMuteBtn = document.getElementById('mixerBreathMute');
-const mixerBreathSoloBtn = document.getElementById('mixerBreathSolo');
 const mixerResetBtn = document.getElementById('mixerReset');
 const mixerMeteringChk = document.getElementById('mixerMetering');
 
@@ -119,11 +109,7 @@ const robotRateCtl = linkRange('robotRate','robotRateOut');
 const revCtl  = linkRange('reverb','reverbOut');
 const compCtl = linkRange('comp','compOut');
 const gateCtl = linkRange('gate','gateOut');
-const breathVolCtl = linkRange('breathVol','breathVolOut');
 const latencySel = document.getElementById('latencyHint');
-
-const breathBtn = document.getElementById('breathBtn');
-const autobreathChk = document.getElementById('autobreath');
 
 // Preset buttons
 const presetBtns = Array.from(document.querySelectorAll('.presetBtn'));
@@ -543,8 +529,6 @@ function toggleMixerChannel(channel, type) {
       mixerInputGain.gain.value = state.muted ? 0 : parseFloat(mixerInputCtl.value);
     } else if (channel === 'effects' && mixerEffectsGain) {
       mixerEffectsGain.gain.value = state.muted ? 0 : parseFloat(mixerEffectsCtl.value);
-    } else if (channel === 'breath' && mixerBreathGain) {
-      mixerBreathGain.gain.value = state.muted ? 0 : parseFloat(mixerBreathCtl.value);
     }
     
     log(`🎛️ ${channel} ${state.muted ? 'muted' : 'unmuted'}`);
@@ -562,7 +546,6 @@ function toggleMixerChannel(channel, type) {
         if (!mixerChannelStates[ch].solo) {
           if (ch === 'input' && mixerInputGain) mixerInputGain.gain.value = 0;
           if (ch === 'effects' && mixerEffectsGain) mixerEffectsGain.gain.value = 0;
-          if (ch === 'breath' && mixerBreathGain) mixerBreathGain.gain.value = 0;
         }
       });
     } else {
@@ -573,9 +556,6 @@ function toggleMixerChannel(channel, type) {
       if (mixerEffectsGain && !mixerChannelStates.effects.muted) {
         mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value);
       }
-      if (mixerBreathGain && !mixerChannelStates.breath.muted) {
-        mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value);
-      }
     }
     
     log(`🎛️ ${channel} solo ${state.solo ? 'enabled' : 'disabled'}`);
@@ -585,7 +565,6 @@ function toggleMixerChannel(channel, type) {
 function resetMixer() {
   mixerInputCtl.value = 1.0;
   mixerEffectsCtl.value = 1.0;
-  mixerBreathCtl.value = 0.7;
   mixerMasterCtl.value = 1.2;
   
   // Reset all states
@@ -602,12 +581,10 @@ function resetMixer() {
   // Apply to audio nodes
   if (mixerInputGain) mixerInputGain.gain.value = 1.0;
   if (mixerEffectsGain) mixerEffectsGain.gain.value = 1.0;
-  if (mixerBreathGain) mixerBreathGain.gain.value = 0.7;
   if (mixerMasterGain) mixerMasterGain.gain.value = 1.2;
   
   mixerInputCtl.dispatchEvent(new Event('input'));
   mixerEffectsCtl.dispatchEvent(new Event('input'));
-  mixerBreathCtl.dispatchEvent(new Event('input'));
   mixerMasterCtl.dispatchEvent(new Event('input'));
   
   log("🎛️ Mixer reset to defaults");
@@ -1039,50 +1016,26 @@ function makeNoiseIR(ctx, seconds=2.0, decay=0.5){
   return ir;
 }
 
-function makeBreathBuffer(ctx, seconds=1.6){
-  const rate = ctx.sampleRate;
-  const len = Math.floor(rate * seconds);
-  const buf = ctx.createBuffer(1, len, rate);
-  const data = buf.getChannelData(0);
-  let x=0;
-  for (let i=0;i<len;i++){
-    x = 0.98*x + (Math.random()*2-1)*0.1;
-    data[i] = x;
-  }
-  for (let i=0;i<Math.min(rate*0.12,len);i++) data[i]*= i/(rate*0.12);
-  for (let i=0;i<Math.min(rate*0.15,len);i++) data[len-1-i]*= i/(rate*0.15);
-  return buf;
-}
-
-function playBreath(){
-  if (!audioCtx) return;
-  breathSource = audioCtx.createBufferSource();
-  breathSource.buffer = breathBuffer;
-  const g = audioCtx.createGain();
-  g.gain.value = parseFloat(breathVolCtl.value);
-  breathSource.connect(g);
-  g.connect(outMediaStreamDest);
-  breathSource.start();
-  breathSource.onended = ()=> { breathSource = null; };
-}
-
 function detectSpeech(){
-  if (!analyser) return;
-  analyser.getByteTimeDomainData(dataArray);
-  let sum = 0;
-  for (let i=0;i<dataArray.length;i++){
-    const v =(dataArray[i]-128)/128;
-    sum += v*v;
+  if (!analyser || !audioCtx || audioCtx.state === 'closed') return;
+  if (!dataArray || !gateGain) return;
+  
+  try {
+    analyser.getByteTimeDomainData(dataArray);
+    let sum = 0;
+    for (let i=0;i<dataArray.length;i++){
+      const v =(dataArray[i]-128)/128;
+      sum += v*v;
+    }
+    const rms = Math.sqrt(sum/dataArray.length);
+    const speaking = rms > gateThreshold;
+    
+    // Noise gate: ramp down when below threshold
+    gateGain.gain.setTargetAtTime(speaking ? 1.0 : 0.0, audioCtx.currentTime, 0.02);
+  } catch(e) {
+    // Silently handle errors to prevent crashes during speech detection
+    console.error("Speech detection error:", e);
   }
-  const rms = Math.sqrt(sum/dataArray.length);
-  const speaking = rms > gateThreshold;
-  // Noise gate: ramp down when below threshold
-  gateGain.gain.setTargetAtTime(speaking ? 1.0 : 0.0, audioCtx.currentTime, 0.02);
-
-  if (!speaking && lastSpeaking){
-    if (autobreathChk.checked) playBreath();
-  }
-  lastSpeaking = speaking;
 }
 
 async function start(){
@@ -1279,11 +1232,9 @@ async function start(){
     // Mixer gain nodes
     mixerInputGain = audioCtx.createGain();
     mixerEffectsGain = audioCtx.createGain();
-    mixerBreathGain = audioCtx.createGain();
     mixerMasterGain = audioCtx.createGain();
     mixerInputGain.gain.value = parseFloat(mixerInputCtl.value);
     mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value);
-    mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value);
     mixerMasterGain.gain.value = parseFloat(mixerMasterCtl.value);
 
     // distortion
@@ -1453,11 +1404,7 @@ async function start(){
       }
     });
 
-    breathBuffer = makeBreathBuffer(audioCtx);
-    autobreath = autobreathChk.checked;
-
-    if (speechDetector) clearInterval(speechDetector);
-    speechDetector = setInterval(detectSpeech, 100);
+    setInterval(detectSpeech, 100);
     
     // Start graphic EQ visualization
     initGraphicEQ();
@@ -1484,11 +1431,6 @@ async function start(){
 
 function stop(){
   try {
-    if (speechDetector) { 
-      clearInterval(speechDetector); 
-      speechDetector = null;
-    }
-    
     if (meteringInterval) {
       clearInterval(meteringInterval);
       meteringInterval = null;
@@ -1507,12 +1449,6 @@ function stop(){
     if (robotOsc) { 
       try { robotOsc.stop(); } catch(_){} 
       robotOsc = null; 
-    }
-    
-    // Stop breath source
-    if (breathSource) { 
-      try { breathSource.stop(); } catch(_){} 
-      breathSource = null; 
     }
     
     // Stop media stream tracks
@@ -1614,8 +1550,6 @@ outSelect.addEventListener('change', ()=> {
   updateDeviceTypeIndicators();
 });
 micSelect.addEventListener('change', updateDeviceTypeIndicators);
-breathBtn.addEventListener('click', playBreath);
-autobreathChk.addEventListener('change', ()=> autobreath = autobreathChk.checked);
 latencySel.addEventListener('change', ()=> log("Latency hint set to: " + latencySel.value));
 
 // New audio control event listeners
@@ -1649,15 +1583,12 @@ eqBassBtn.addEventListener('click', ()=> applyGraphicEQ('bass'));
 // Mixer event listeners
 mixerInputCtl.addEventListener('input', ()=> mixerInputGain && !mixerChannelStates.input.muted && (mixerInputGain.gain.value = parseFloat(mixerInputCtl.value)));
 mixerEffectsCtl.addEventListener('input', ()=> mixerEffectsGain && !mixerChannelStates.effects.muted && (mixerEffectsGain.gain.value = parseFloat(mixerEffectsCtl.value)));
-mixerBreathCtl.addEventListener('input', ()=> mixerBreathGain && !mixerChannelStates.breath.muted && (mixerBreathGain.gain.value = parseFloat(mixerBreathCtl.value)));
 mixerMasterCtl.addEventListener('input', ()=> mixerMasterGain && (mixerMasterGain.gain.value = parseFloat(mixerMasterCtl.value)));
 
 mixerInputMuteBtn.addEventListener('click', ()=> toggleMixerChannel('input', 'mute'));
 mixerInputSoloBtn.addEventListener('click', ()=> toggleMixerChannel('input', 'solo'));
 mixerEffectsMuteBtn.addEventListener('click', ()=> toggleMixerChannel('effects', 'mute'));
 mixerEffectsSoloBtn.addEventListener('click', ()=> toggleMixerChannel('effects', 'solo'));
-mixerBreathMuteBtn.addEventListener('click', ()=> toggleMixerChannel('breath', 'mute'));
-mixerBreathSoloBtn.addEventListener('click', ()=> toggleMixerChannel('breath', 'solo'));
 mixerResetBtn.addEventListener('click', resetMixer);
 
 async function ensurePermissions(){
